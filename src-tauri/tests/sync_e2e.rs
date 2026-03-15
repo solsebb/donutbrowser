@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+
 use donutbrowser_lib::sync::types::*;
 use reqwest::Client;
 use serde_json::json;

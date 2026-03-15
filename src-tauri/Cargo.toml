@@ -4,6 +4,7 @@ version = "0.16.1"
 description = "Simple Yet Powerful Anti-Detect Browser"
 authors = ["zhom@github"]
 edition = "2021"
+rust-version = "1.88"
 default-run = "donutbrowser"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

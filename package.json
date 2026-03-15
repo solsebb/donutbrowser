@@ -15,8 +15,9 @@
     "lint": "pnpm lint:js && pnpm lint:rust && pnpm lint:spell",
     "lint:js": "biome check src/ && tsc --noEmit && cd donut-sync && biome check src/ && tsc --noEmit",
     "lint:rust": "cd src-tauri && cargo clippy --all-targets --all-features -- -D warnings -D clippy::all && cargo fmt --all",
-    "lint:spell": "typos .",
+    "lint:spell": "node scripts/run-typos.mjs .",
     "tauri": "tauri",
+    "tauri:dev:isolated": "node scripts/run-tauri-dev-isolated.mjs",
     "shadcn:add": "pnpm dlx shadcn@latest add",
     "prepare": "husky && husky install",
     "format:rust": "cd src-tauri && cargo clippy --fix --allow-dirty --all-targets --all-features -- -D warnings -D clippy::all && cargo fmt --all",
@@ -99,7 +100,7 @@
       "bash -c 'cd src-tauri && cargo test --lib'"
     ],
     "**/*.{rs,ts,tsx,js,jsx,md}": [
-      "typos"
+      "node scripts/run-typos.mjs"
     ]
   }
 }

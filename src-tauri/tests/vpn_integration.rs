@@ -3,6 +3,8 @@
 //! These tests verify VPN config parsing, storage, and tunnel functionality.
 //! Connection tests require Docker and are skipped if Docker is not available.
 
+#![allow(clippy::uninlined_format_args)]
+
 mod test_harness;
 
 use donutbrowser_lib::vpn::{
