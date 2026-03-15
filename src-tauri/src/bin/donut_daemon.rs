@@ -2,6 +2,7 @@
 // This runs independently of the main Tauri GUI
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![allow(clippy::uninlined_format_args)]
 
 use std::env;
 use std::fs;

@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use std::env;
 use std::sync::Mutex;
@@ -859,9 +861,25 @@ async fn generate_sample_fingerprint(
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+fn dev_isolated_mode_enabled() -> bool {
+  if !cfg!(debug_assertions) {
+    return false;
+  }
+
+  match std::env::var("DONUTBROWSER_DEV_ISOLATED") {
+    Ok(value) => {
+      let normalized = value.trim().to_ascii_lowercase();
+      !matches!(normalized.as_str(), "" | "0" | "false" | "no" | "off")
+    }
+    Err(_) => false,
+  }
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let args: Vec<String> = env::args().collect();
   let startup_url = args.iter().find(|arg| arg.starts_with("http")).cloned();
+  let dev_isolated = dev_isolated_mode_enabled();
 
   if let Some(url) = startup_url.clone() {
     log::info!("Found startup URL in command line: {url}");
@@ -871,36 +889,37 @@ pub fn run() {
 
   let log_file_name = app_dirs::app_name();
 
-  tauri::Builder::default()
-    .plugin(
-      tauri_plugin_log::Builder::new()
-        .clear_targets() // Clear default targets to avoid duplicates
-        .target(Target::new(TargetKind::Stdout))
-        .target(Target::new(TargetKind::Webview))
-        .target(Target::new(TargetKind::LogDir {
-          file_name: Some(log_file_name.to_string()),
-        }))
-        .max_file_size(100_000) // 100KB
-        .level(log::LevelFilter::Info)
-        .format(|out, message, record| {
-          use chrono::Local;
-          let now = Local::now();
-          let timestamp = format!(
-            "{}.{:03}",
-            now.format("%Y-%m-%d %H:%M:%S"),
-            now.timestamp_subsec_millis()
-          );
-          out.finish(format_args!(
-            "[{}][{}][{}] {}",
-            timestamp,
-            record.target(),
-            record.level(),
-            message
-          ))
-        })
-        .build(),
-    )
-    .plugin(tauri_plugin_single_instance::init(
+  let mut builder = tauri::Builder::default().plugin(
+    tauri_plugin_log::Builder::new()
+      .clear_targets() // Clear default targets to avoid duplicates
+      .target(Target::new(TargetKind::Stdout))
+      .target(Target::new(TargetKind::Webview))
+      .target(Target::new(TargetKind::LogDir {
+        file_name: Some(log_file_name.to_string()),
+      }))
+      .max_file_size(100_000) // 100KB
+      .level(log::LevelFilter::Info)
+      .format(|out, message, record| {
+        use chrono::Local;
+        let now = Local::now();
+        let timestamp = format!(
+          "{}.{:03}",
+          now.format("%Y-%m-%d %H:%M:%S"),
+          now.timestamp_subsec_millis()
+        );
+        out.finish(format_args!(
+          "[{}][{}][{}] {}",
+          timestamp,
+          record.target(),
+          record.level(),
+          message
+        ))
+      })
+      .build(),
+  );
+
+  if !dev_isolated {
+    builder = builder.plugin(tauri_plugin_single_instance::init(
       |app_handle, args, _cwd| {
         log::info!("Single instance triggered with args: {args:?}");
         if let Some(window) = app_handle.get_webview_window("main") {
@@ -909,14 +928,17 @@ pub fn run() {
           let _ = window.unminimize();
         }
       },
-    ))
+    ));
+  }
+
+  builder
     .plugin(tauri_plugin_deep_link::init())
     .plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_shell::init())
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_macos_permissions::init())
-    .setup(|app| {
+    .setup(move |app| {
       // Recover ephemeral dir mappings from RAM-backed storage (tmpfs/ramdisk)
       ephemeral_dirs::recover_ephemeral_dirs();
 
@@ -926,38 +948,44 @@ pub fn run() {
         mgr.ensure_icons_extracted();
       }
 
-      // Start the daemon for tray icon
-      if let Err(e) = daemon_spawn::ensure_daemon_running() {
-        log::warn!("Failed to start daemon: {e}");
-      }
-
-      // Register this GUI's PID in daemon state so the daemon can kill us directly
-      daemon_spawn::register_gui_pid();
-
-      // Monitor daemon health - quit GUI if daemon dies
-      tauri::async_runtime::spawn(async move {
-        // Give the daemon time to fully start
-        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
-        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
-        loop {
-          interval.tick().await;
-
-          let is_running = tokio::task::spawn_blocking(daemon_spawn::is_daemon_running)
-            .await
-            .unwrap_or(false);
-
-          if !is_running {
-            log::warn!("Daemon is no longer running, quitting GUI immediately");
-            // Use process::exit for immediate termination. Tauri's exit()
-            // triggers a slow graceful shutdown that can take over a minute
-            // waiting for async tasks (sync, version updater, etc.) to finish.
-            std::process::exit(0);
-          }
+      if dev_isolated {
+        log::info!(
+          "Running in isolated dev mode; shared single-instance and daemon startup are disabled"
+        );
+      } else {
+        // Start the daemon for tray icon
+        if let Err(e) = daemon_spawn::ensure_daemon_running() {
+          log::warn!("Failed to start daemon: {e}");
         }
-      });
+
+        // Register this GUI's PID in daemon state so the daemon can kill us directly
+        daemon_spawn::register_gui_pid();
+
+        // Monitor daemon health - quit GUI if daemon dies
+        tauri::async_runtime::spawn(async move {
+          // Give the daemon time to fully start
+          tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+
+          let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+          interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+          loop {
+            interval.tick().await;
+
+            let is_running = tokio::task::spawn_blocking(daemon_spawn::is_daemon_running)
+              .await
+              .unwrap_or(false);
+
+            if !is_running {
+              log::warn!("Daemon is no longer running, quitting GUI immediately");
+              // Use process::exit for immediate termination. Tauri's exit()
+              // triggers a slow graceful shutdown that can take over a minute
+              // waiting for async tasks (sync, version updater, etc.) to finish.
+              std::process::exit(0);
+            }
+          }
+        });
+      }
 
       // Create the main window programmatically
       #[allow(unused_variables)]
@@ -993,48 +1021,50 @@ pub fn run() {
         log::warn!("Failed to set global event emitter: {e}");
       }
 
-      #[cfg(windows)]
-      {
-        // For Windows, register all deep links at runtime
-        if let Err(e) = app.deep_link().register_all() {
-          log::warn!("Failed to register deep links: {e}");
-        }
-      }
-
-      #[cfg(target_os = "macos")]
-      {
-        // On macOS, try to register deep links for development builds
-        if let Err(e) = app.deep_link().register_all() {
-          log::debug!(
-            "Note: Deep link registration failed on macOS (this is normal for production): {e}"
-          );
-        }
-      }
-
-      app.deep_link().on_open_url({
-        let handle = handle.clone();
-        move |event| {
-          let urls = event.urls();
-          log::info!("Deep link event received with {} URLs", urls.len());
-
-          for url in urls {
-            let url_string = url.to_string();
-            log::info!("Deep link received: {url_string}");
-
-            // Clone the handle for each async task
-            let handle_clone = handle.clone();
-
-            // Handle the URL asynchronously
-            tauri::async_runtime::spawn(async move {
-              if let Err(e) = handle_url_open(handle_clone, url_string.clone()).await {
-                log::error!("Failed to handle deep link URL: {e}");
-              }
-            });
+      if !dev_isolated {
+        #[cfg(windows)]
+        {
+          // For Windows, register all deep links at runtime
+          if let Err(e) = app.deep_link().register_all() {
+            log::warn!("Failed to register deep links: {e}");
           }
         }
-      });
 
-      if let Some(startup_url) = startup_url {
+        #[cfg(target_os = "macos")]
+        {
+          // On macOS, try to register deep links for development builds
+          if let Err(e) = app.deep_link().register_all() {
+            log::debug!(
+              "Note: Deep link registration failed on macOS (this is normal for production): {e}"
+            );
+          }
+        }
+
+        app.deep_link().on_open_url({
+          let handle = handle.clone();
+          move |event| {
+            let urls = event.urls();
+            log::info!("Deep link event received with {} URLs", urls.len());
+
+            for url in urls {
+              let url_string = url.to_string();
+              log::info!("Deep link received: {url_string}");
+
+              // Clone the handle for each async task
+              let handle_clone = handle.clone();
+
+              // Handle the URL asynchronously
+              tauri::async_runtime::spawn(async move {
+                if let Err(e) = handle_url_open(handle_clone, url_string.clone()).await {
+                  log::error!("Failed to handle deep link URL: {e}");
+                }
+              });
+            }
+          }
+        });
+      }
+
+      if let Some(startup_url) = startup_url.clone() {
         let handle_clone = handle.clone();
         tauri::async_runtime::spawn(async move {
           log::info!("Processing startup URL from command line: {startup_url}");

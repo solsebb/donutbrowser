@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+
 mod common;
 use common::TestUtils;
 use serde_json::Value;

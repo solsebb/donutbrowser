@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+
 use clap::{Arg, Command};
 use donutbrowser_lib::proxy_runner::{
   start_proxy_process_with_profile, stop_all_proxy_processes, stop_proxy_process,

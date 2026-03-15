@@ -1,3 +1,5 @@
+#![allow(clippy::uninlined_format_args)]
+
 fn main() {
   println!("cargo::rustc-check-cfg=cfg(mobile)");
 
@@ -95,13 +97,13 @@ fn external_binaries_exist() -> bool {
   // Check for all required external binaries (must match tauri.conf.json externalBin)
   let (donut_proxy_name, donut_daemon_name) = if target.contains("windows") {
     (
-      format!("donut-proxy-{}.exe", target),
-      format!("donut-daemon-{}.exe", target),
+      format!("donut-proxy-{target}.exe"),
+      format!("donut-daemon-{target}.exe"),
     )
   } else {
     (
-      format!("donut-proxy-{}", target),
-      format!("donut-daemon-{}", target),
+      format!("donut-proxy-{target}"),
+      format!("donut-daemon-{target}"),
     )
   };
 

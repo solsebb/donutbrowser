@@ -49,7 +49,7 @@ Ensure you have the following dependencies installed:
 
 - Node.js (see `.node-version` for exact version)
 - pnpm package manager
-- Latest Rust and Cargo toolchain
+- Rust and Cargo toolchain from `rust-toolchain.toml` (`rustup` will install it automatically)
 - [Tauri prerequisites guide](https://v2.tauri.app/start/prerequisites/).
 
 ## Run Locally
@@ -100,6 +100,8 @@ pnpm format:rust
 # Run all linting
 pnpm lint
 ```
+
+The first spellcheck run may install a repo-local `typos` binary under `.cache/typos` if you do not already have `typos` available globally.
 
 ## Building
 
