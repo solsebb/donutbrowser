@@ -22,7 +22,6 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Input } from "./ui/input";
-import { ProBadge } from "./ui/pro-badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 type Props = {
@@ -36,7 +35,7 @@ type Props = {
   onExtensionManagementDialogOpen: (open: boolean) => void;
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
-  crossOsUnlocked?: boolean;
+  extensionToolsEnabled?: boolean;
 };
 
 const HomeHeader = ({
@@ -50,7 +49,7 @@ const HomeHeader = ({
   onExtensionManagementDialogOpen,
   searchQuery,
   onSearchQueryChange,
-  crossOsUnlocked = false,
+  extensionToolsEnabled = true,
 }: Props) => {
   const { t } = useTranslation();
   const runtimeConfig = useRuntimeAppConfig();
@@ -150,15 +149,14 @@ const HomeHeader = ({
               {t("header.menu.groups")}
             </DropdownMenuItem>
             <DropdownMenuItem
-              disabled={!crossOsUnlocked}
-              className={cn(!crossOsUnlocked && "opacity-50")}
+              disabled={!extensionToolsEnabled}
+              className={cn(!extensionToolsEnabled && "opacity-50")}
               onClick={() => {
                 onExtensionManagementDialogOpen(true);
               }}
             >
               <LuPuzzle className="mr-2 w-4 h-4" />
               {t("header.menu.extensions")}
-              {!crossOsUnlocked && <ProBadge className="ml-auto" />}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {

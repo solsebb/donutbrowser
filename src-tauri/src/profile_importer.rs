@@ -837,7 +837,7 @@ pub async fn import_browser_profile(
     .is_fingerprint_os_allowed(fingerprint_os)
     .await
   {
-    return Err("Fingerprint OS spoofing requires an active Pro subscription".to_string());
+    return Err("Cross-OS fingerprints are not available in this build".to_string());
   }
 
   let importer = ProfileImporter::instance();

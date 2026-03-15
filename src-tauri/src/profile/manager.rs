@@ -2104,7 +2104,7 @@ pub async fn create_browser_profile_new(
     .is_fingerprint_os_allowed(fingerprint_os)
     .await
   {
-    return Err("Fingerprint OS spoofing requires an active Pro subscription".to_string());
+    return Err("Cross-OS fingerprints are not available in this build".to_string());
   }
 
   let browser_type =
@@ -2132,18 +2132,16 @@ pub async fn update_camoufox_config(
   config: CamoufoxConfig,
 ) -> Result<(), String> {
   if config.fingerprint.is_some()
-    && !crate::cloud_auth::CLOUD_AUTH
-      .has_active_paid_subscription()
-      .await
+    && !crate::runtime_app_config::current().cross_os_profiles_enabled()
   {
-    return Err("Fingerprint editing requires an active Pro subscription".to_string());
+    return Err("Fingerprint editing is not available in this build".to_string());
   }
 
   if !crate::cloud_auth::CLOUD_AUTH
     .is_fingerprint_os_allowed(config.os.as_deref())
     .await
   {
-    return Err("Fingerprint OS spoofing requires an active Pro subscription".to_string());
+    return Err("Cross-OS fingerprints are not available in this build".to_string());
   }
 
   let profile_manager = ProfileManager::instance();
@@ -2160,18 +2158,16 @@ pub async fn update_wayfern_config(
   config: WayfernConfig,
 ) -> Result<(), String> {
   if config.fingerprint.is_some()
-    && !crate::cloud_auth::CLOUD_AUTH
-      .has_active_paid_subscription()
-      .await
+    && !crate::runtime_app_config::current().cross_os_profiles_enabled()
   {
-    return Err("Fingerprint editing requires an active Pro subscription".to_string());
+    return Err("Fingerprint editing is not available in this build".to_string());
   }
 
   if !crate::cloud_auth::CLOUD_AUTH
     .is_fingerprint_os_allowed(config.os.as_deref())
     .await
   {
-    return Err("Fingerprint OS spoofing requires an active Pro subscription".to_string());
+    return Err("Cross-OS fingerprints are not available in this build".to_string());
   }
 
   let profile_manager = ProfileManager::instance();

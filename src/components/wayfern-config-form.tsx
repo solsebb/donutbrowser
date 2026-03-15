@@ -8,7 +8,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ProBadge } from "@/components/ui/pro-badge";
 import {
   Select,
   SelectContent,
@@ -208,7 +207,6 @@ export function WayfernConfigForm({
                 <SelectItem key={os} value={os} disabled={isDisabled}>
                   <span className="flex items-center gap-2">
                     {osLabels[os]}
-                    {isDisabled && <ProBadge />}
                   </span>
                 </SelectItem>
               );
@@ -1045,9 +1043,8 @@ export function WayfernConfigForm({
             <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-background to-transparent z-[2]" />
             <div className="absolute inset-0 flex items-center justify-center z-[3]">
               <div className="flex items-center gap-2 rounded-md bg-background/80 px-3 py-1.5">
-                <ProBadge />
                 <span className="text-sm font-medium text-muted-foreground">
-                  {t("fingerprint.proFeature")}
+                  Advanced fingerprint editing is not available in this build.
                 </span>
               </div>
             </div>
@@ -1107,7 +1104,6 @@ export function WayfernConfigForm({
                       <SelectItem key={os} value={os} disabled={isDisabled}>
                         <span className="flex items-center gap-2">
                           {osLabels[os]}
-                          {isDisabled && <ProBadge />}
                         </span>
                       </SelectItem>
                     );
@@ -1260,9 +1256,9 @@ export function WayfernConfigForm({
                   <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-background to-transparent z-[2]" />
                   <div className="absolute inset-0 flex items-center justify-center z-[3]">
                     <div className="flex items-center gap-2 rounded-md bg-background/80 px-3 py-1.5">
-                      <ProBadge />
                       <span className="text-sm font-medium text-muted-foreground">
-                        {t("fingerprint.proFeature")}
+                        Advanced fingerprint editing is not available in this
+                        build.
                       </span>
                     </div>
                   </div>

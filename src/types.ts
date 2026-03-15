@@ -77,7 +77,13 @@ export interface RuntimeAppConfig {
   homepage_url?: string | null;
   support_url?: string | null;
   account_url?: string | null;
+  cross_os_profiles_enabled: boolean;
+  cookie_tools_enabled: boolean;
+  extension_tools_enabled: boolean;
+  self_hosted_sync_enabled: boolean;
   hosted_cloud_enabled: boolean;
+  hosted_cloud_ui_mode: "hidden" | "disabled" | "enabled";
+  commercial_license_ui_enabled: boolean;
   updater_enabled: boolean;
   release_page_base_url?: string | null;
 }

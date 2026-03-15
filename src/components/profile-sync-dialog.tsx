@@ -20,6 +20,7 @@ import { useCloudAuth } from "@/hooks/use-cloud-auth";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import type { BrowserProfile, SyncMode, SyncSettings } from "@/types";
 import { isSyncEnabled } from "@/types";
+import { useRuntimeAppConfig } from "./runtime-app-config-provider";
 
 interface ProfileSyncDialogProps {
   isOpen: boolean;
@@ -35,16 +36,11 @@ export function ProfileSyncDialog({
   onSyncConfigOpen,
 }: ProfileSyncDialogProps) {
   const { t } = useTranslation();
+  const runtimeConfig = useRuntimeAppConfig();
   const { user: cloudUser } = useCloudAuth();
-  const isCloudSyncEligible =
-    cloudUser != null &&
-    cloudUser.plan !== "free" &&
-    (cloudUser.subscriptionStatus === "active" ||
-      cloudUser.planPeriod === "lifetime");
-  const canUseEncryption =
-    isCloudSyncEligible &&
-    cloudUser != null &&
-    (cloudUser.plan !== "team" || cloudUser.teamRole === "owner");
+  const hasCloudSyncConfig =
+    runtimeConfig.hosted_cloud_ui_mode === "enabled" && cloudUser != null;
+  const canUseEncryption = runtimeConfig.self_hosted_sync_enabled;
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMode, setSyncMode] = useState<SyncMode>(
@@ -55,7 +51,7 @@ export function ProfileSyncDialog({
   const [isCheckingConfig, setIsCheckingConfig] = useState(false);
   const [userChangedMode, setUserChangedMode] = useState(false);
 
-  const hasConfig = isCloudSyncEligible || hasSelfHostedConfig;
+  const hasConfig = hasCloudSyncConfig || hasSelfHostedConfig;
 
   const checkSyncConfig = useCallback(async () => {
     setIsCheckingConfig(true);
@@ -102,7 +98,7 @@ export function ProfileSyncDialog({
       }
 
       if (newMode === "Encrypted" && !canUseEncryption) {
-        showErrorToast(t("settings.encryption.requiresProOrOwner"));
+        showErrorToast("Encrypted sync is not available in this build.");
         return;
       }
 
@@ -270,10 +266,7 @@ export function ProfileSyncDialog({
                               "sync.mode.encryptedDescription",
                               "Encrypted before upload. Server never sees plaintext data.",
                             )
-                          : t(
-                              "settings.encryption.requiresProOrOwner",
-                              "Profile encryption is available for Pro users and team owners.",
-                            )}
+                          : "Encrypted sync is not available in this build."}
                       </p>
                     </Label>
                   </div>

@@ -306,11 +306,8 @@ async fn copy_profile_cookies(
   app_handle: tauri::AppHandle,
   request: cookie_manager::CookieCopyRequest,
 ) -> Result<Vec<cookie_manager::CookieCopyResult>, String> {
-  if !crate::cloud_auth::CLOUD_AUTH
-    .has_active_paid_subscription()
-    .await
-  {
-    return Err("Cookie copying requires an active Pro subscription".to_string());
+  if !crate::runtime_app_config::current().cookie_tools_enabled() {
+    return Err("Cookie tools are not available in this build".to_string());
   }
   let target_ids = request.target_profile_ids.clone();
   let results = cookie_manager::CookieManager::copy_cookies(&app_handle, request).await?;
@@ -347,11 +344,8 @@ async fn import_cookies_from_file(
   profile_id: String,
   content: String,
 ) -> Result<cookie_manager::CookieImportResult, String> {
-  if !crate::cloud_auth::CLOUD_AUTH
-    .has_active_paid_subscription()
-    .await
-  {
-    return Err("Cookie import requires an active Pro subscription".to_string());
+  if !crate::runtime_app_config::current().cookie_tools_enabled() {
+    return Err("Cookie tools are not available in this build".to_string());
   }
   let result =
     cookie_manager::CookieManager::import_cookies(&app_handle, &profile_id, &content).await?;
@@ -376,11 +370,8 @@ async fn import_cookies_from_file(
 
 #[tauri::command]
 async fn export_profile_cookies(profile_id: String, format: String) -> Result<String, String> {
-  if !crate::cloud_auth::CLOUD_AUTH
-    .has_active_paid_subscription()
-    .await
-  {
-    return Err("Cookie export requires an active Pro subscription".to_string());
+  if !crate::runtime_app_config::current().cookie_tools_enabled() {
+    return Err("Cookie tools are not available in this build".to_string());
   }
   cookie_manager::CookieManager::export_cookies(&profile_id, &format)
 }
@@ -400,27 +391,6 @@ async fn accept_wayfern_terms() -> Result<(), String> {
   wayfern_terms::WayfernTermsManager::instance()
     .accept_terms()
     .await
-}
-
-#[tauri::command]
-async fn get_commercial_trial_status(
-  app_handle: tauri::AppHandle,
-) -> Result<commercial_license::TrialStatus, String> {
-  commercial_license::CommercialLicenseManager::instance()
-    .get_trial_status(&app_handle)
-    .await
-}
-
-#[tauri::command]
-async fn acknowledge_trial_expiration(app_handle: tauri::AppHandle) -> Result<(), String> {
-  commercial_license::CommercialLicenseManager::instance()
-    .acknowledge_expiration(&app_handle)
-    .await
-}
-
-#[tauri::command]
-fn has_acknowledged_trial_expiration(app_handle: tauri::AppHandle) -> Result<bool, String> {
-  commercial_license::CommercialLicenseManager::instance().has_acknowledged(&app_handle)
 }
 
 #[tauri::command]
@@ -1695,9 +1665,6 @@ pub fn run() {
       check_wayfern_terms_accepted,
       check_wayfern_downloaded,
       accept_wayfern_terms,
-      get_commercial_trial_status,
-      acknowledge_trial_expiration,
-      has_acknowledged_trial_expiration,
       start_mcp_server,
       stop_mcp_server,
       get_mcp_server_status,

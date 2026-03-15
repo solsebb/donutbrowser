@@ -9,7 +9,13 @@ const DEFAULT_RUNTIME_APP_CONFIG: RuntimeAppConfig = {
   homepage_url: null,
   support_url: null,
   account_url: null,
+  cross_os_profiles_enabled: true,
+  cookie_tools_enabled: true,
+  extension_tools_enabled: true,
+  self_hosted_sync_enabled: true,
   hosted_cloud_enabled: false,
+  hosted_cloud_ui_mode: "disabled",
+  commercial_license_ui_enabled: false,
   updater_enabled: false,
   release_page_base_url: null,
 };

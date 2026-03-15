@@ -40,8 +40,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useCloudAuth } from "@/hooks/use-cloud-auth";
-import { useCommercialTrial } from "@/hooks/use-commercial-trial";
 import { useLanguage } from "@/hooks/use-language";
 import type { PermissionType } from "@/hooks/use-permissions";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -137,14 +135,6 @@ export function SettingsDialog({
     isMicrophoneAccessGranted,
     isCameraAccessGranted,
   } = usePermissions();
-  const { trialStatus } = useCommercialTrial();
-  const { user: cloudUser } = useCloudAuth();
-  const canUseEncryption =
-    cloudUser != null &&
-    cloudUser.plan !== "free" &&
-    (cloudUser.subscriptionStatus === "active" ||
-      cloudUser.planPeriod === "lifetime") &&
-    (cloudUser.plan !== "team" || cloudUser.teamRole === "owner");
   const {
     currentLanguage,
     changeLanguage,
@@ -933,14 +923,7 @@ export function SettingsDialog({
               )}
             </p>
 
-            {!canUseEncryption ? (
-              <p className="text-sm text-muted-foreground">
-                {t(
-                  "settings.encryption.requiresProOrOwner",
-                  "Profile encryption is available for Pro users and team owners.",
-                )}
-              </p>
-            ) : hasE2ePassword ? (
+            {hasE2ePassword ? (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Badge variant="default">
@@ -1065,35 +1048,6 @@ export function SettingsDialog({
                 </LoadingButton>
               </div>
             )}
-          </div>
-
-          {/* Commercial License Section */}
-          <div className="space-y-4">
-            <Label className="text-base font-medium">Commercial License</Label>
-
-            <div className="flex items-center justify-between p-3 rounded-md border bg-muted/40">
-              {trialStatus?.type === "Active" ? (
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">
-                    Trial: {trialStatus.days_remaining} days,{" "}
-                    {trialStatus.hours_remaining} hours remaining
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Commercial use is free during the trial period
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-warning">
-                    Trial expired
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Personal use remains free. Commercial use requires a
-                    license.
-                  </p>
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Advanced Section */}
