@@ -183,7 +183,7 @@ export function IntegrationsDialog({
     return JSON.stringify(
       {
         mcpServers: {
-          "donut-browser": {
+          "twitter-browser": {
             url: `http://127.0.0.1:${mcpConfig.port}/mcp`,
             headers: {
               Authorization: `Bearer ${mcpConfig.token}`,
@@ -201,7 +201,7 @@ export function IntegrationsDialog({
     return JSON.stringify(
       {
         mcpServers: {
-          "donut-browser": {
+          "twitter-browser": {
             url: `http://127.0.0.1:${mcpConfig.port}/mcp`,
             headers: {
               Authorization: `Bearer ${obfuscateToken(mcpConfig.token)}`,

@@ -76,5 +76,5 @@ function copyBinary(baseName) {
   }
 }
 
-copyBinary("donut-proxy");
-copyBinary("donut-daemon");
+copyBinary("twitter-proxy");
+copyBinary("twitter-daemon");

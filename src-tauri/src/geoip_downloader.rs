@@ -273,7 +273,13 @@ impl GeoIPDownloader {
     let response = self
       .client
       .get(&url)
-      .header("User-Agent", "Mozilla/5.0 (compatible; donutbrowser)")
+      .header(
+        "User-Agent",
+        format!(
+          "Mozilla/5.0 (compatible; {})",
+          crate::runtime_app_config::current().user_agent_token
+        ),
+      )
       .send()
       .await?;
 
@@ -360,7 +366,13 @@ mod tests {
     let response = downloader
       .client
       .get(&url)
-      .header("User-Agent", "Mozilla/5.0 (compatible; donutbrowser)")
+      .header(
+        "User-Agent",
+        format!(
+          "Mozilla/5.0 (compatible; {})",
+          crate::runtime_app_config::current().user_agent_token
+        ),
+      )
       .send()
       .await
       .expect("Request should succeed");

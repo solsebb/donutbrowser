@@ -1,7 +1,7 @@
 /*!
 # App Auto Updater
 
-This module provides comprehensive self-update functionality for the Donut Browser application
+This module provides comprehensive self-update functionality for the TwitterBrowser application
 across multiple operating systems and installation methods.
 
 ## Supported Platforms
@@ -128,6 +128,23 @@ impl AppAutoUpdater {
     &APP_AUTO_UPDATER
   }
 
+  fn updater_enabled() -> bool {
+    crate::runtime_app_config::current().updater_enabled()
+  }
+
+  fn releases_api_url(&self) -> Option<&'static str> {
+    crate::runtime_app_config::current()
+      .releases_api_url
+      .as_deref()
+  }
+
+  fn release_page_url(&self, tag_name: &str) -> Option<String> {
+    crate::runtime_app_config::current()
+      .releases_page_url
+      .as_ref()
+      .map(|base_url| format!("{}/tag/{tag_name}", base_url.trim_end_matches('/')))
+  }
+
   /// Check if running a nightly build based on environment variable
   pub fn is_nightly_build() -> bool {
     // If STABLE_RELEASE env var is set at compile time, it's a stable build
@@ -156,6 +173,11 @@ impl AppAutoUpdater {
   pub async fn check_for_updates(
     &self,
   ) -> Result<Option<AppUpdateInfo>, Box<dyn std::error::Error + Send + Sync>> {
+    if !Self::updater_enabled() {
+      log::info!("App updater is disabled because no release source is configured");
+      return Ok(None);
+    }
+
     let current_version = Self::get_current_version();
     let is_nightly = Self::is_nightly_build();
 
@@ -204,10 +226,7 @@ impl AppAutoUpdater {
       log::info!("Update available!");
 
       // Build the release page URL
-      let release_page_url = format!(
-        "https://github.com/zhom/donutbrowser/releases/tag/{}",
-        latest_release.tag_name
-      );
+      let release_page_url = self.release_page_url(&latest_release.tag_name);
 
       // Find the appropriate asset for current platform
       let download_url = self.get_download_url_for_platform(&latest_release.assets);
@@ -217,15 +236,21 @@ impl AppAutoUpdater {
       #[cfg(target_os = "linux")]
       {
         let manual_update_required = download_url.is_none();
+        let release_page_url = release_page_url.clone();
+        if manual_update_required && release_page_url.is_none() {
+          log::info!("Manual update required but no release page is configured");
+          return Ok(None);
+        }
         let update_info = AppUpdateInfo {
           current_version,
           new_version: latest_release.tag_name.clone(),
           release_notes: latest_release.body.clone(),
-          download_url: download_url.unwrap_or_else(|| release_page_url.clone()),
+          download_url: download_url
+            .unwrap_or_else(|| release_page_url.clone().unwrap_or_default()),
           is_nightly,
           published_at: latest_release.published_at.clone(),
           manual_update_required,
-          release_page_url: Some(release_page_url),
+          release_page_url,
         };
 
         log::info!(
@@ -248,7 +273,7 @@ impl AppAutoUpdater {
             is_nightly,
             published_at: latest_release.published_at.clone(),
             manual_update_required: false,
-            release_page_url: Some(release_page_url),
+            release_page_url,
           };
 
           log::info!(
@@ -272,7 +297,9 @@ impl AppAutoUpdater {
   async fn fetch_app_releases(
     &self,
   ) -> Result<Vec<AppRelease>, Box<dyn std::error::Error + Send + Sync>> {
-    let url = "https://api.github.com/repos/zhom/donutbrowser/releases?per_page=100";
+    let Some(url) = self.releases_api_url() else {
+      return Ok(Vec::new());
+    };
     let response = self
       .client
       .get(url)
@@ -725,7 +752,7 @@ impl AppAutoUpdater {
   ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     log::info!("Starting background update download and install");
 
-    let temp_dir = std::env::temp_dir().join("donut_app_update");
+    let temp_dir = std::env::temp_dir().join("twitterbrowser_app_update");
     fs::create_dir_all(&temp_dir)?;
 
     let filename = update_info
@@ -912,18 +939,18 @@ impl AppAutoUpdater {
       // Clean up backup after successful installation
       let _ = fs::remove_dir_all(&backup_path);
 
-      // Clean up old "Donut Browser.app" if it exists (from before the project rename)
+      // Clean up old "TwitterBrowser.app" if it exists (from before the project rename)
       if let Some(parent_dir) = current_app_path.parent() {
-        let old_app_path = parent_dir.join("Donut Browser.app");
+        let old_app_path = parent_dir.join("TwitterBrowser.app");
         if old_app_path.exists() && old_app_path != current_app_path {
           log::info!(
-            "Removing old 'Donut Browser.app' from: {}",
+            "Removing old 'TwitterBrowser.app' from: {}",
             old_app_path.display()
           );
           if let Err(e) = fs::remove_dir_all(&old_app_path) {
-            log::warn!("Warning: Failed to remove old 'Donut Browser.app': {e}");
+            log::warn!("Warning: Failed to remove old 'TwitterBrowser.app': {e}");
           } else {
-            log::info!("Successfully removed old 'Donut Browser.app'");
+            log::info!("Successfully removed old 'TwitterBrowser.app'");
           }
         }
       }
@@ -1770,34 +1797,34 @@ mod tests {
     let all_assets = vec![
       // macOS assets
       AppReleaseAsset {
-        name: "Donut.Browser_0.1.0_aarch64.dmg".to_string(),
+        name: "TwitterBrowser_0.1.0_aarch64.dmg".to_string(),
         browser_download_url: "https://example.com/aarch64.dmg".to_string(),
         size: 12345,
       },
       AppReleaseAsset {
-        name: "Donut.Browser_0.1.0_x64.dmg".to_string(),
+        name: "TwitterBrowser_0.1.0_x64.dmg".to_string(),
         browser_download_url: "https://example.com/x64.dmg".to_string(),
         size: 12345,
       },
       // Windows assets (NSIS naming: _ARCH-setup.exe)
       AppReleaseAsset {
-        name: "Donut_0.1.0_x64-setup.exe".to_string(),
+        name: "TwitterBrowser_0.1.0_x64-setup.exe".to_string(),
         browser_download_url: "https://example.com/x64-setup.exe".to_string(),
         size: 12345,
       },
       // Linux assets
       AppReleaseAsset {
-        name: "donutbrowser_0.1.0_amd64.deb".to_string(),
+        name: "twitterbrowser_0.1.0_amd64.deb".to_string(),
         browser_download_url: "https://example.com/amd64.deb".to_string(),
         size: 12345,
       },
       AppReleaseAsset {
-        name: "donutbrowser-0.1.0-1.x86_64.rpm".to_string(),
+        name: "twitterbrowser-0.1.0-1.x86_64.rpm".to_string(),
         browser_download_url: "https://example.com/x86_64.rpm".to_string(),
         size: 12345,
       },
       AppReleaseAsset {
-        name: "Donut.Browser-0.1.0-x86_64.AppImage".to_string(),
+        name: "TwitterBrowser-0.1.0-x86_64.AppImage".to_string(),
         browser_download_url: "https://example.com/x86_64.AppImage".to_string(),
         size: 12345,
       },
@@ -1899,12 +1926,12 @@ mod tests {
     // Create mock assets including AppImage
     let assets = vec![
       AppReleaseAsset {
-        name: "donutbrowser_0.1.0_amd64.deb".to_string(),
+        name: "twitterbrowser_0.1.0_amd64.deb".to_string(),
         browser_download_url: "https://example.com/amd64.deb".to_string(),
         size: 12345,
       },
       AppReleaseAsset {
-        name: "Donut.Browser-0.1.0-x86_64.AppImage".to_string(),
+        name: "TwitterBrowser-0.1.0-x86_64.AppImage".to_string(),
         browser_download_url: "https://example.com/x86_64.AppImage".to_string(),
         size: 12345,
       },
@@ -1944,24 +1971,24 @@ mod tests {
     let all_assets = vec![
       // macOS assets
       AppReleaseAsset {
-        name: "Donut.Browser_0.1.0_aarch64.dmg".to_string(),
+        name: "TwitterBrowser_0.1.0_aarch64.dmg".to_string(),
         browser_download_url: "https://example.com/aarch64.dmg".to_string(),
         size: 12345,
       },
       // Windows assets
       AppReleaseAsset {
-        name: "Donut.Browser_0.1.0_x64.msi".to_string(),
+        name: "TwitterBrowser_0.1.0_x64.msi".to_string(),
         browser_download_url: "https://example.com/x64.msi".to_string(),
         size: 12345,
       },
       // Linux assets
       AppReleaseAsset {
-        name: "donutbrowser_0.1.0_amd64.deb".to_string(),
+        name: "twitterbrowser_0.1.0_amd64.deb".to_string(),
         browser_download_url: "https://example.com/amd64.deb".to_string(),
         size: 12345,
       },
       AppReleaseAsset {
-        name: "Donut.Browser-0.1.0-x86_64.AppImage".to_string(),
+        name: "TwitterBrowser-0.1.0-x86_64.AppImage".to_string(),
         browser_download_url: "https://example.com/x86_64.AppImage".to_string(),
         size: 12345,
       },

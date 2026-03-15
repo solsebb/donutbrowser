@@ -20,6 +20,7 @@ mod browser_runner;
 mod browser_version_manager;
 pub mod camoufox;
 mod camoufox_manager;
+mod data_isolation;
 mod default_browser;
 mod downloaded_browsers_registry;
 mod downloader;
@@ -37,6 +38,7 @@ mod proxy_manager;
 pub mod proxy_runner;
 pub mod proxy_server;
 pub mod proxy_storage;
+mod runtime_app_config;
 mod settings_manager;
 pub mod sync;
 pub mod traffic_stats;
@@ -116,7 +118,10 @@ use app_auto_updater::{
   restart_application,
 };
 
+use data_isolation::{get_data_isolation_status, import_legacy_donut_data};
+
 use profile_importer::{detect_existing_profiles, import_browser_profile};
+use runtime_app_config::get_runtime_app_config;
 
 use extension_manager::{
   add_extension, add_extension_to_group, assign_extension_group_to_profile, create_extension_group,
@@ -460,7 +465,7 @@ async fn get_mcp_config(app_handle: tauri::AppHandle) -> Result<Option<McpConfig
 
   let config_json = serde_json::json!({
     "mcpServers": {
-      "donut-browser": {
+      "twitter-browser": {
         "url": format!("http://127.0.0.1:{}/mcp", port),
         "headers": {
           "Authorization": format!("Bearer {}", token)
@@ -866,17 +871,37 @@ fn dev_isolated_mode_enabled() -> bool {
     return false;
   }
 
-  match std::env::var("DONUTBROWSER_DEV_ISOLATED") {
-    Ok(value) => {
+  dev_isolated_mode_enabled_with(|name| std::env::var(name).ok())
+}
+
+fn dev_isolated_mode_enabled_with<F>(lookup: F) -> bool
+where
+  F: Fn(&str) -> Option<String>,
+{
+  let env_value = lookup("TWITTERBROWSER_DEV_ISOLATED");
+
+  match env_value {
+    Some(value) => {
       let normalized = value.trim().to_ascii_lowercase();
       !matches!(normalized.as_str(), "" | "0" | "false" | "no" | "off")
     }
-    Err(_) => false,
+    None => false,
   }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  match data_isolation::bootstrap_data_isolation() {
+    Ok(Some(backup_dir)) => {
+      eprintln!(
+        "Quarantined previously auto-imported data to {}",
+        backup_dir.display()
+      );
+    }
+    Ok(None) => {}
+    Err(e) => eprintln!("Failed to enforce data isolation: {e}"),
+  }
+
   let args: Vec<String> = env::args().collect();
   let startup_url = args.iter().find(|arg| arg.starts_with("http")).cloned();
   let dev_isolated = dev_isolated_mode_enabled();
@@ -990,7 +1015,7 @@ pub fn run() {
       // Create the main window programmatically
       #[allow(unused_variables)]
       let win_builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
-        .title("Donut Browser")
+        .title("TwitterBrowser")
         .inner_size(800.0, 500.0)
         .resizable(false)
         .fullscreen(false)
@@ -1522,6 +1547,11 @@ pub fn run() {
       // Start cloud auth background refresh loop
       let app_handle_cloud = app.handle().clone();
       tauri::async_runtime::spawn(async move {
+        if !cloud_auth::hosted_cloud_enabled() {
+          log::info!("Hosted cloud disabled; skipping cloud auth background tasks");
+          return;
+        }
+
         // On startup, refresh sync token and proxy if cloud auth is active.
         // api_call_with_retry handles 401/refresh internally — no direct
         // refresh_access_token call needed.
@@ -1568,6 +1598,9 @@ pub fn run() {
       check_browser_status,
       kill_browser_profile,
       rename_profile,
+      get_runtime_app_config,
+      get_data_isolation_status,
+      import_legacy_donut_data,
       get_app_settings,
       save_app_settings,
       should_show_launch_on_login_prompt,
@@ -1717,6 +1750,29 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
   use std::fs;
+
+  use super::dev_isolated_mode_enabled_with;
+
+  #[test]
+  fn dev_isolated_mode_only_uses_twitterbrowser_env() {
+    assert!(!dev_isolated_mode_enabled_with(|name| match name {
+      "TWITTERBROWSER_DEV_ISOLATED" => None,
+      "DONUTBROWSER_DEV_ISOLATED" => Some("1".to_string()),
+      _ => None,
+    }));
+  }
+
+  #[test]
+  fn dev_isolated_mode_honors_twitterbrowser_env_values() {
+    assert!(dev_isolated_mode_enabled_with(|name| match name {
+      "TWITTERBROWSER_DEV_ISOLATED" => Some("1".to_string()),
+      _ => None,
+    }));
+    assert!(!dev_isolated_mode_enabled_with(|name| match name {
+      "TWITTERBROWSER_DEV_ISOLATED" => Some("false".to_string()),
+      _ => None,
+    }));
+  }
 
   #[test]
   fn test_no_unused_tauri_commands() {

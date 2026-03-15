@@ -1,12 +1,12 @@
 #![allow(clippy::uninlined_format_args)]
 
-use donutbrowser_lib::sync::types::*;
 use reqwest::Client;
 use serde_json::json;
 use std::env;
 use std::fs;
 use std::path::Path;
 use tempfile::TempDir;
+use twitterbrowser_lib::sync::types::*;
 
 const TEST_TOKEN: &str = "test-sync-token";
 

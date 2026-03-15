@@ -87,10 +87,11 @@ fn is_dev_mode() -> bool {
 
 #[cfg(target_os = "macos")]
 fn get_daemon_path() -> Option<PathBuf> {
+  let config = crate::runtime_app_config::current();
   // First try to find the daemon binary next to the current executable
   if let Ok(current_exe) = std::env::current_exe() {
     if let Some(exe_dir) = current_exe.parent() {
-      let daemon_path = exe_dir.join("donut-daemon");
+      let daemon_path = exe_dir.join(config.daemon_executable_name());
       if daemon_path.exists() {
         return Some(daemon_path);
       }
@@ -99,9 +100,19 @@ fn get_daemon_path() -> Option<PathBuf> {
 
   // Try common installation paths
   let paths = [
-    PathBuf::from("/Applications/Donut Browser.app/Contents/MacOS/donut-daemon"),
+    PathBuf::from(format!(
+      "/Applications/{}.app/Contents/MacOS/{}",
+      config.display_name,
+      config.daemon_executable_name()
+    )),
     dirs::home_dir()
-      .map(|h| h.join("Applications/Donut Browser.app/Contents/MacOS/donut-daemon"))
+      .map(|h| {
+        h.join(format!(
+          "Applications/{}.app/Contents/MacOS/{}",
+          config.display_name,
+          config.daemon_executable_name()
+        ))
+      })
       .unwrap_or_default(),
   ];
   paths.into_iter().find(|path| path.exists())
@@ -109,15 +120,13 @@ fn get_daemon_path() -> Option<PathBuf> {
 
 #[cfg(any(target_os = "linux", windows))]
 fn get_daemon_path() -> Option<PathBuf> {
+  let config = crate::runtime_app_config::current();
   // First, try to find it next to the current executable
   if let Ok(current_exe) = std::env::current_exe() {
     let exe_dir = current_exe.parent()?;
 
     // Check for daemon binary in same directory
-    #[cfg(target_os = "windows")]
-    let daemon_name = "donut-daemon.exe";
-    #[cfg(target_os = "linux")]
-    let daemon_name = "donut-daemon";
+    let daemon_name = config.daemon_executable_name();
 
     let daemon_path = exe_dir.join(daemon_name);
     if daemon_path.exists() {
@@ -131,7 +140,7 @@ fn get_daemon_path() -> Option<PathBuf> {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x08000000;
     if let Ok(output) = Command::new("where")
-      .arg("donut-daemon")
+      .arg(config.daemon_binary_name.as_str())
       .creation_flags(CREATE_NO_WINDOW)
       .output()
     {
@@ -145,7 +154,10 @@ fn get_daemon_path() -> Option<PathBuf> {
 
   #[cfg(target_os = "linux")]
   {
-    if let Ok(output) = Command::new("which").arg("donut-daemon").output() {
+    if let Ok(output) = Command::new("which")
+      .arg(config.daemon_binary_name.as_str())
+      .output()
+    {
       if output.status.success() {
         let path = String::from_utf8_lossy(&output.stdout);
         let path = path.trim();

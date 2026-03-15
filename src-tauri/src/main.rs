@@ -3,5 +3,5 @@
 #![allow(clippy::uninlined_format_args)]
 
 fn main() {
-  donutbrowser_lib::run()
+  twitterbrowser_lib::run()
 }

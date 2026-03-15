@@ -12,6 +12,7 @@ import {
 } from "react-icons/lu";
 import { cn } from "@/lib/utils";
 import { Logo } from "./icons/logo";
+import { useRuntimeAppConfig } from "./runtime-app-config-provider";
 import { Button } from "./ui/button";
 import { CardTitle } from "./ui/card";
 import {
@@ -52,10 +53,16 @@ const HomeHeader = ({
   crossOsUnlocked = false,
 }: Props) => {
   const { t } = useTranslation();
+  const runtimeConfig = useRuntimeAppConfig();
+
   const handleLogoClick = () => {
+    if (!runtimeConfig.homepage_url) {
+      return;
+    }
+
     // Trigger the same URL handling logic as if the URL came from the system
     const event = new CustomEvent("url-open-request", {
-      detail: "https://donutbrowser.com",
+      detail: runtimeConfig.homepage_url,
     });
     window.dispatchEvent(event);
   };
@@ -65,12 +72,17 @@ const HomeHeader = ({
         <button
           type="button"
           className="p-1 cursor-pointer"
-          title="Open donutbrowser.com"
+          title={
+            runtimeConfig.homepage_url
+              ? `Open ${runtimeConfig.display_name} homepage`
+              : runtimeConfig.display_name
+          }
           onClick={handleLogoClick}
+          disabled={!runtimeConfig.homepage_url}
         >
           <Logo className="w-10 h-10 transition-transform duration-300 ease-out will-change-transform hover:scale-110" />
         </button>
-        <CardTitle>Donut</CardTitle>
+        <CardTitle>{runtimeConfig.display_name}</CardTitle>
       </div>
       <div className="flex gap-2 items-center">
         <div className="relative">

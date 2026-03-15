@@ -1,4 +1,4 @@
-# Contributing to Donut Browser
+# Contributing to TwitterBrowser
 
 Contributions are welcome and always appreciated! 🍩
 
@@ -14,10 +14,10 @@ Do keep in mind before you start working on an issue / posting a PR:
 
 ## Contributor License Agreement
 
-By contributing to Donut Browser, you agree that your contributions will be licensed under the same terms as the project. You must agree to the [Contributor License Agreement](CONTRIBUTOR_LICENSE_AGREEMENT.md) before your contributions can be accepted. This agreement ensures that:
+By contributing to TwitterBrowser, you agree that your contributions will be licensed under the same terms as the project. You must agree to the [Contributor License Agreement](CONTRIBUTOR_LICENSE_AGREEMENT.md) before your contributions can be accepted. This agreement ensures that:
 
-- Your contributions can be used in the open source version of Donut Browser (licensed under AGPL-3.0)
-- Donut Browser can offer commercial licenses for the software, including your contributions
+- Your contributions can be used in the open source version of TwitterBrowser (licensed under AGPL-3.0)
+- TwitterBrowser can offer commercial licenses for the software, including your contributions
 - You retain all rights to use your contributions for any other purpose
 
 When you submit your first pull request, you acknowledge that you agree to the terms of the Contributor License Agreement.
@@ -168,7 +168,7 @@ Refs #00000
 
 ## Architecture Overview
 
-Donut Browser is built with:
+TwitterBrowser is built with:
 
 - **Frontend**: Next.js React application
 - **Backend**: Tauri (Rust) for native functionality
@@ -193,4 +193,4 @@ All contributors will be recognized! The project uses the all-contributors speci
 
 ---
 
-Thank you for contributing to Donut Browser! 🍩✨
+Thank you for contributing to TwitterBrowser! 🍩✨

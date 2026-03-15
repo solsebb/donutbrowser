@@ -216,7 +216,9 @@ impl SyncEngine {
   pub async fn create_from_settings(app_handle: &tauri::AppHandle) -> Result<Self, String> {
     // Cloud auth takes priority
     if crate::cloud_auth::CLOUD_AUTH.is_logged_in().await {
-      let url = crate::cloud_auth::CLOUD_SYNC_URL.to_string();
+      let Some(url) = crate::cloud_auth::cloud_sync_url().map(str::to_string) else {
+        return Err("Hosted cloud sync is not configured for this build".to_string());
+      };
       let token = crate::cloud_auth::CLOUD_AUTH
         .get_or_refresh_sync_token()
         .await

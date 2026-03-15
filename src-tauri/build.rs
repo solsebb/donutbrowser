@@ -38,11 +38,24 @@ fn main() {
   }
 
   // Inject vault password at build time
-  if let Ok(vault_password) = std::env::var("DONUT_BROWSER_VAULT_PASSWORD") {
-    println!("cargo:rustc-env=DONUT_BROWSER_VAULT_PASSWORD={vault_password}");
+  println!("cargo:rerun-if-env-changed=TWITTERBROWSER_VAULT_PASSWORD");
+  println!("cargo:rerun-if-env-changed=DONUT_BROWSER_VAULT_PASSWORD");
+  println!("cargo:rerun-if-env-changed=TWITTERBROWSER_HOMEPAGE_URL");
+  println!("cargo:rerun-if-env-changed=TWITTERBROWSER_SUPPORT_URL");
+  println!("cargo:rerun-if-env-changed=TWITTERBROWSER_ACCOUNT_URL");
+  println!("cargo:rerun-if-env-changed=TWITTERBROWSER_CLOUD_API_URL");
+  println!("cargo:rerun-if-env-changed=TWITTERBROWSER_CLOUD_SYNC_URL");
+  println!("cargo:rerun-if-env-changed=TWITTERBROWSER_RELEASES_API_URL");
+  println!("cargo:rerun-if-env-changed=TWITTERBROWSER_RELEASES_PAGE_URL");
+  println!("cargo:rerun-if-env-changed=TWITTERBROWSER_WAYFERN_METADATA_URL");
+
+  if let Ok(vault_password) = std::env::var("TWITTERBROWSER_VAULT_PASSWORD")
+    .or_else(|_| std::env::var("DONUT_BROWSER_VAULT_PASSWORD"))
+  {
+    println!("cargo:rustc-env=TWITTERBROWSER_VAULT_PASSWORD={vault_password}");
   } else {
-    // Use default password if environment variable is not set
-    println!("cargo:rustc-env=DONUT_BROWSER_VAULT_PASSWORD=donutbrowser-api-vault-password");
+    // Keep the historical default so existing encrypted local data remains readable.
+    println!("cargo:rustc-env=TWITTERBROWSER_VAULT_PASSWORD=donutbrowser-api-vault-password");
   }
 
   // Tell Cargo to rebuild if the proxy binary source changes
@@ -56,7 +69,7 @@ fn main() {
   println!("cargo:rerun-if-changed=binaries");
 
   // Only run tauri_build if all external binaries exist
-  // This allows building donut-proxy sidecar without the other binaries present
+  // This allows building twitter-proxy sidecar without the other binaries present
   if external_binaries_exist() {
     tauri_build::build();
 
@@ -97,13 +110,13 @@ fn external_binaries_exist() -> bool {
   // Check for all required external binaries (must match tauri.conf.json externalBin)
   let (donut_proxy_name, donut_daemon_name) = if target.contains("windows") {
     (
-      format!("donut-proxy-{target}.exe"),
-      format!("donut-daemon-{target}.exe"),
+      format!("twitter-proxy-{target}.exe"),
+      format!("twitter-daemon-{target}.exe"),
     )
   } else {
     (
-      format!("donut-proxy-{target}"),
-      format!("donut-daemon-{target}"),
+      format!("twitter-proxy-{target}"),
+      format!("twitter-daemon-{target}"),
     )
   };
 

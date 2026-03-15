@@ -54,7 +54,7 @@ mod macos {
 
   pub fn is_default_browser() -> Result<bool, String> {
     let schemes = ["http", "https"];
-    let bundle_id = "com.donutbrowser";
+    let bundle_id = crate::runtime_app_config::current().bundle_id.as_str();
 
     for scheme in schemes {
       let scheme_str = CFString::new(scheme);
@@ -76,7 +76,7 @@ mod macos {
   }
 
   pub fn set_as_default_browser() -> Result<(), String> {
-    let bundle_id = CFString::new("com.donutbrowser");
+    let bundle_id = CFString::new(crate::runtime_app_config::current().bundle_id.as_str());
     let schemes = ["http", "https"];
 
     for scheme in schemes {
@@ -89,10 +89,10 @@ mod macos {
         if status != 0 {
           let error_msg = match status {
             -54 => format!(
-              "Failed to set as default browser for scheme '{scheme}'. The app is not properly registered as a browser. Please:\n1. Build and install the app properly\n2. Manually set Donut Browser as default in System Settings > General > Default web browser\n3. Make sure the app is in your Applications folder"
+              "Failed to set as default browser for scheme '{scheme}'. The app is not properly registered as a browser. Please:\n1. Build and install the app properly\n2. Manually set TwitterBrowser as default in System Settings > General > Default web browser\n3. Make sure the app is in your Applications folder"
             ),
             _ => format!(
-              "Failed to set as default browser for scheme '{scheme}'. Status code: {status}. Please manually set Donut Browser as default in System Settings > General > Default web browser."
+              "Failed to set as default browser for scheme '{scheme}'. Status code: {status}. Please manually set TwitterBrowser as default in System Settings > General > Default web browser."
             )
           };
           return Err(error_msg);
@@ -110,8 +110,8 @@ mod windows {
   use winreg::enums::*;
   use winreg::RegKey;
 
-  const APP_NAME: &str = "DonutBrowser";
-  const PROG_ID: &str = "DonutBrowser.HTML";
+  const APP_NAME: &str = "TwitterBrowser";
+  const PROG_ID: &str = "TwitterBrowser.HTML";
 
   pub fn is_default_browser() -> Result<bool, String> {
     let schemes = ["http", "https"];
@@ -199,7 +199,7 @@ mod windows {
     app_key
       .set_value(
         "ApplicationDescription",
-        &"Donut Browser - Simple Yet Powerful Anti-Detect Browser",
+        &"TwitterBrowser - Simple Yet Powerful Anti-Detect Browser",
       )
       .map_err(|e| format!("Failed to set ApplicationDescription: {}", e))?;
 
@@ -215,7 +215,7 @@ mod windows {
     capabilities
       .set_value(
         "ApplicationDescription",
-        &"Donut Browser - Simple Yet Powerful Anti-Detect Browser",
+        &"TwitterBrowser - Simple Yet Powerful Anti-Detect Browser",
       )
       .map_err(|e| format!("Failed to set Capabilities description: {}", e))?;
 
@@ -260,11 +260,11 @@ mod windows {
       .map_err(|e| format!("Failed to create ProgID key: {}", e))?;
 
     prog_id_key
-      .set_value("", &"Donut Browser Document")
+      .set_value("", &"TwitterBrowser Document")
       .map_err(|e| format!("Failed to set ProgID default value: {}", e))?;
 
     prog_id_key
-      .set_value("FriendlyTypeName", &"Donut Browser Document")
+      .set_value("FriendlyTypeName", &"TwitterBrowser Document")
       .map_err(|e| format!("Failed to set FriendlyTypeName: {}", e))?;
 
     // Create DefaultIcon key
@@ -381,9 +381,10 @@ mod windows {
 mod linux {
   use std::process::Command;
 
-  const APP_DESKTOP_NAME: &str = "donutbrowser.desktop";
-
   pub fn is_default_browser() -> Result<bool, String> {
+    let app_desktop_name = crate::runtime_app_config::current()
+      .linux_desktop_file_name
+      .as_str();
     // Check if xdg-mime is available
     if !is_xdg_mime_available() {
       return Err("xdg-mime utility not found. Please install xdg-utils package.".to_string());
@@ -408,7 +409,7 @@ mod linux {
       let current_handler = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
       // Check if our app is the default handler
-      if current_handler != APP_DESKTOP_NAME {
+      if current_handler != app_desktop_name {
         return Ok(false);
       }
     }
@@ -425,8 +426,8 @@ mod linux {
     // Check if the desktop file exists in common locations
     if !check_desktop_file_exists() {
       return Err(format!(
-        "Desktop file '{}' not found in standard locations. Please ensure the application is properly installed. You can manually set Donut Browser as the default browser in your system settings.",
-        APP_DESKTOP_NAME
+        "Desktop file '{}' not found in standard locations. Please ensure the application is properly installed. You can manually set TwitterBrowser as the default browser in your system settings.",
+        crate::runtime_app_config::current().linux_desktop_file_name
       ));
     }
 
@@ -439,7 +440,13 @@ mod linux {
 
       // Set our app as the default handler for this scheme
       let output = Command::new("xdg-mime")
-        .args(["default", APP_DESKTOP_NAME, &mime_type])
+        .args([
+          "default",
+          crate::runtime_app_config::current()
+            .linux_desktop_file_name
+            .as_str(),
+          &mime_type,
+        ])
         .output()
         .map_err(|e| format!("Failed to set default handler for {}: {}", scheme, e))?;
 
@@ -466,8 +473,8 @@ mod linux {
       Ok(false) => {
         // This is the common case where commands succeed but verification fails
         Err(format!(
-          "The xdg-mime commands completed successfully, but Donut Browser is not yet set as the default. This is common on some Linux distributions. Please try one of these options:\n\n1. Restart your desktop session and try again\n2. Log out and log back in\n3. Manually set Donut Browser as the default in your system settings:\n   - GNOME: Settings > Default Applications > Web\n   - KDE: System Settings > Applications > Default Applications > Web Browser\n   - XFCE: Settings > Preferred Applications > Web Browser\n   - Or run: xdg-settings set default-web-browser {}\n\nThe changes may take effect automatically after a desktop restart.",
-          APP_DESKTOP_NAME
+          "The xdg-mime commands completed successfully, but TwitterBrowser is not yet set as the default. This is common on some Linux distributions. Please try one of these options:\n\n1. Restart your desktop session and try again\n2. Log out and log back in\n3. Manually set TwitterBrowser as the default in your system settings:\n   - GNOME: Settings > Default Applications > Web\n   - KDE: System Settings > Applications > Default Applications > Web Browser\n   - XFCE: Settings > Preferred Applications > Web Browser\n   - Or run: xdg-settings set default-web-browser {}\n\nThe changes may take effect automatically after a desktop restart.",
+          crate::runtime_app_config::current().linux_desktop_file_name
         ))
       }
       Err(e) => Err(format!(
@@ -486,6 +493,9 @@ mod linux {
   }
 
   fn check_desktop_file_exists() -> bool {
+    let app_desktop_name = crate::runtime_app_config::current()
+      .linux_desktop_file_name
+      .as_str();
     let desktop_locations = [
       "~/.local/share/applications/",
       "/usr/share/applications/",
@@ -505,7 +515,7 @@ mod linux {
         location.to_string()
       };
 
-      let full_path = format!("{}{}", path, APP_DESKTOP_NAME);
+      let full_path = format!("{}{}", path, app_desktop_name);
       if std::path::Path::new(&full_path).exists() {
         return true;
       }

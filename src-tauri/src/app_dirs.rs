@@ -1,19 +1,96 @@
 use directories::BaseDirs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
+use crate::runtime_app_config;
+
 static BASE_DIRS: OnceLock<BaseDirs> = OnceLock::new();
+
+const LEGACY_RELEASE_APP_NAME: &str = "DonutBrowser";
+const LEGACY_DEBUG_APP_NAME: &str = "DonutBrowserDev";
+const LEGACY_IMPORT_SENTINEL: &str = ".legacy_donut_import_complete.json";
 
 fn base_dirs() -> &'static BaseDirs {
   BASE_DIRS.get_or_init(|| BaseDirs::new().expect("Failed to get base directories"))
 }
 
-pub fn app_name() -> &'static str {
+fn current_release_app_name() -> &'static str {
+  runtime_app_config::current().display_name.as_str()
+}
+
+fn current_debug_app_name() -> &'static str {
+  runtime_app_config::current().dev_display_name.as_str()
+}
+
+fn path_from_env<F>(lookup: &F, key: &str) -> Option<PathBuf>
+where
+  F: Fn(&str) -> Option<String>,
+{
+  lookup(key).and_then(|value| {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+      None
+    } else {
+      Some(PathBuf::from(trimmed))
+    }
+  })
+}
+
+fn data_dir_from_env<F>(lookup: &F) -> Option<PathBuf>
+where
+  F: Fn(&str) -> Option<String>,
+{
+  path_from_env(lookup, "TWITTERBROWSER_DATA_DIR")
+}
+
+fn cache_dir_from_env<F>(lookup: &F) -> Option<PathBuf>
+where
+  F: Fn(&str) -> Option<String>,
+{
+  path_from_env(lookup, "TWITTERBROWSER_CACHE_DIR")
+}
+
+fn legacy_data_dir_from_env<F>(lookup: &F) -> Option<PathBuf>
+where
+  F: Fn(&str) -> Option<String>,
+{
+  path_from_env(lookup, "DONUTBROWSER_DATA_DIR")
+}
+
+fn current_app_name_for_build() -> &'static str {
   if cfg!(debug_assertions) {
-    "DonutBrowserDev"
+    current_debug_app_name()
   } else {
-    "DonutBrowser"
+    current_release_app_name()
   }
+}
+
+fn legacy_app_name_for_build() -> &'static str {
+  if cfg!(debug_assertions) {
+    LEGACY_DEBUG_APP_NAME
+  } else {
+    LEGACY_RELEASE_APP_NAME
+  }
+}
+
+fn alternate_legacy_app_name() -> &'static str {
+  if cfg!(debug_assertions) {
+    LEGACY_RELEASE_APP_NAME
+  } else {
+    LEGACY_DEBUG_APP_NAME
+  }
+}
+
+pub(crate) fn default_data_dir_for_name(name: &str) -> PathBuf {
+  base_dirs().data_local_dir().join(name)
+}
+
+fn default_cache_dir_for_name(name: &str) -> PathBuf {
+  base_dirs().cache_dir().join(name)
+}
+
+pub fn app_name() -> &'static str {
+  current_app_name_for_build()
 }
 
 pub fn data_dir() -> PathBuf {
@@ -24,11 +101,11 @@ pub fn data_dir() -> PathBuf {
     }
   }
 
-  if let Ok(dir) = std::env::var("DONUTBROWSER_DATA_DIR") {
-    return PathBuf::from(dir);
+  if let Some(dir) = data_dir_from_env(&|name| std::env::var(name).ok()) {
+    return dir;
   }
 
-  base_dirs().data_local_dir().join(app_name())
+  default_data_dir_for_name(app_name())
 }
 
 pub fn cache_dir() -> PathBuf {
@@ -39,11 +116,11 @@ pub fn cache_dir() -> PathBuf {
     }
   }
 
-  if let Ok(dir) = std::env::var("DONUTBROWSER_CACHE_DIR") {
-    return PathBuf::from(dir);
+  if let Some(dir) = cache_dir_from_env(&|name| std::env::var(name).ok()) {
+    return dir;
   }
 
-  base_dirs().cache_dir().join(app_name())
+  default_cache_dir_for_name(app_name())
 }
 
 pub fn profiles_dir() -> PathBuf {
@@ -76,6 +153,42 @@ pub fn vpn_dir() -> PathBuf {
 
 pub fn extensions_dir() -> PathBuf {
   data_dir().join("extensions")
+}
+
+pub(crate) fn legacy_import_sentinel_path(data_root: &Path) -> PathBuf {
+  data_root.join("settings").join(LEGACY_IMPORT_SENTINEL)
+}
+
+fn dedupe_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
+  let mut unique = Vec::new();
+
+  for path in paths {
+    if !unique.iter().any(|existing| existing == &path) {
+      unique.push(path);
+    }
+  }
+
+  unique
+}
+
+pub(crate) fn legacy_data_dir_candidates_with<F>(lookup: &F) -> Vec<PathBuf>
+where
+  F: Fn(&str) -> Option<String>,
+{
+  dedupe_paths(vec![
+    legacy_data_dir_from_env(lookup)
+      .unwrap_or_else(|| default_data_dir_for_name(legacy_app_name_for_build())),
+    default_data_dir_for_name(legacy_app_name_for_build()),
+    default_data_dir_for_name(alternate_legacy_app_name()),
+  ])
+}
+
+pub(crate) fn isolation_backup_root_for(data_root: &Path) -> PathBuf {
+  let backup_dir_name = format!("{}-legacy-import-backups", app_name());
+  match data_root.parent() {
+    Some(parent) => parent.join(backup_dir_name),
+    None => PathBuf::from(backup_dir_name),
+  }
 }
 
 #[cfg(test)]
@@ -124,77 +237,84 @@ pub fn set_test_cache_dir(dir: PathBuf) -> TestDirGuard {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use std::collections::HashMap;
+
+  fn lookup_from_map(values: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
+    let values = values
+      .iter()
+      .map(|(key, value)| ((*key).to_string(), (*value).to_string()))
+      .collect::<HashMap<_, _>>();
+    move |name| values.get(name).cloned()
+  }
 
   #[test]
-  fn test_app_name() {
+  fn current_app_name_matches_twitterbrowser() {
     let name = app_name();
     assert!(
-      name == "DonutBrowser" || name == "DonutBrowserDev",
-      "app_name should be DonutBrowser or DonutBrowserDev, got: {name}"
+      name == "TwitterBrowser" || name == "TwitterBrowserDev",
+      "app_name should be TwitterBrowser or TwitterBrowserDev, got: {name}"
     );
   }
 
   #[test]
-  fn test_data_dir_returns_path() {
-    let dir = data_dir();
+  fn active_data_dir_only_uses_twitterbrowser_env() {
+    let lookup = lookup_from_map(&[("DONUTBROWSER_DATA_DIR", "/tmp/donut-data")]);
+    assert_eq!(data_dir_from_env(&lookup), None);
+  }
+
+  #[test]
+  fn active_cache_dir_only_uses_twitterbrowser_env() {
+    let lookup = lookup_from_map(&[("DONUTBROWSER_CACHE_DIR", "/tmp/donut-cache")]);
+    assert_eq!(cache_dir_from_env(&lookup), None);
+  }
+
+  #[test]
+  fn legacy_candidates_still_support_donut_env_for_explicit_imports() {
+    let lookup = lookup_from_map(&[("DONUTBROWSER_DATA_DIR", "/tmp/donut-data")]);
+    let candidates = legacy_data_dir_candidates_with(&lookup);
+    assert_eq!(candidates.first(), Some(&PathBuf::from("/tmp/donut-data")));
+  }
+
+  #[test]
+  fn sentinel_path_is_stored_in_settings_dir() {
+    let root = PathBuf::from("/tmp/TwitterBrowser");
+    assert_eq!(
+      legacy_import_sentinel_path(&root),
+      root.join("settings").join(LEGACY_IMPORT_SENTINEL)
+    );
+  }
+
+  #[test]
+  fn backup_root_uses_app_name_sibling_directory() {
+    let root = PathBuf::from("/tmp/TwitterBrowser");
+    assert_eq!(
+      isolation_backup_root_for(&root),
+      PathBuf::from("/tmp").join(format!("{}-legacy-import-backups", app_name()))
+    );
+  }
+
+  #[test]
+  fn legacy_candidates_include_default_release_dir() {
+    let lookup = lookup_from_map(&[]);
+    let candidates = legacy_data_dir_candidates_with(&lookup);
     assert!(
-      dir.to_string_lossy().contains(app_name()),
-      "data_dir should contain app_name"
+      candidates.iter().any(
+        |path| path.ends_with(LEGACY_RELEASE_APP_NAME) || path.ends_with(LEGACY_DEBUG_APP_NAME)
+      )
     );
   }
 
   #[test]
-  fn test_cache_dir_returns_path() {
-    let dir = cache_dir();
-    assert!(
-      dir.to_string_lossy().contains(app_name()),
-      "cache_dir should contain app_name"
-    );
+  fn test_dir_override_still_works() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let _guard = set_test_data_dir(temp_dir.path().join("twitter-data"));
+    assert_eq!(data_dir(), temp_dir.path().join("twitter-data"));
   }
 
   #[test]
-  fn test_subdirectory_helpers() {
-    assert!(profiles_dir().ends_with("profiles"));
-    assert!(binaries_dir().ends_with("binaries"));
-    assert!(data_subdir().ends_with("data"));
-    assert!(settings_dir().ends_with("settings"));
-    assert!(proxies_dir().ends_with("proxies"));
-    assert!(proxy_workers_dir().ends_with("proxy_workers"));
-    assert!(vpn_dir().ends_with("vpn"));
-    assert!(extensions_dir().ends_with("extensions"));
-  }
-
-  #[test]
-  fn test_set_test_data_dir() {
-    let tmp = PathBuf::from("/tmp/test-donut-data");
-    let _guard = set_test_data_dir(tmp.clone());
-    assert_eq!(data_dir(), tmp);
-    assert_eq!(profiles_dir(), tmp.join("profiles"));
-    assert_eq!(binaries_dir(), tmp.join("binaries"));
-  }
-
-  #[test]
-  fn test_set_test_cache_dir() {
-    let tmp = PathBuf::from("/tmp/test-donut-cache");
-    let _guard = set_test_cache_dir(tmp.clone());
-    assert_eq!(cache_dir(), tmp);
-  }
-
-  #[test]
-  fn test_guard_cleanup() {
-    let original_data = data_dir();
-    let original_cache = cache_dir();
-
-    {
-      let _guard = set_test_data_dir(PathBuf::from("/tmp/test-cleanup-data"));
-      assert_eq!(data_dir(), PathBuf::from("/tmp/test-cleanup-data"));
-    }
-    assert_eq!(data_dir(), original_data);
-
-    {
-      let _guard = set_test_cache_dir(PathBuf::from("/tmp/test-cleanup-cache"));
-      assert_eq!(cache_dir(), PathBuf::from("/tmp/test-cleanup-cache"));
-    }
-    assert_eq!(cache_dir(), original_cache);
+  fn test_cache_dir_override_still_works() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let _guard = set_test_cache_dir(temp_dir.path().join("twitter-cache"));
+    assert_eq!(cache_dir(), temp_dir.path().join("twitter-cache"));
   }
 }

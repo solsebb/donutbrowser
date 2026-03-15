@@ -51,7 +51,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  Donut Browser Development Environment${NC}"
+echo -e "${BLUE}  TwitterBrowser Development Environment${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 

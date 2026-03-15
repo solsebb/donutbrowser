@@ -83,9 +83,9 @@ export function PermissionDialog({
   const getPermissionDescription = (type: PermissionType) => {
     switch (type) {
       case "microphone":
-        return "Donut Browser needs access to your microphone to enable microphone functionality in web browsers. Each website that wants to use your microphone will still ask for your permission individually.";
+        return "TwitterBrowser needs access to your microphone to enable microphone functionality in web browsers. Each website that wants to use your microphone will still ask for your permission individually.";
       case "camera":
-        return "Donut Browser needs access to your camera to enable camera functionality in web browsers. Each website that wants to use your camera will still ask for your permission individually.";
+        return "TwitterBrowser needs access to your camera to enable camera functionality in web browsers. Each website that wants to use your camera will still ask for your permission individually.";
     }
   };
 
@@ -131,7 +131,7 @@ export function PermissionDialog({
           {isCurrentPermissionGranted && (
             <div className="p-3 bg-success/10 rounded-lg">
               <p className="text-sm text-success">
-                ✅ Permission granted! Browsers launched from Donut Browser can
+                ✅ Permission granted! Browsers launched from TwitterBrowser can
                 now access your {permissionType}.
               </p>
             </div>

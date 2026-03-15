@@ -52,6 +52,7 @@ import {
   THEMES,
 } from "@/lib/themes";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
+import type { DataIsolationStatus, LegacyImportResult } from "@/types";
 import { RippleButton } from "./ui/ripple";
 
 interface AppSettings {
@@ -113,6 +114,10 @@ export function SettingsDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [isSettingDefault, setIsSettingDefault] = useState(false);
   const [isClearingCache, setIsClearingCache] = useState(false);
+  const [dataIsolationStatus, setDataIsolationStatus] =
+    useState<DataIsolationStatus | null>(null);
+  const [isLoadingDataIsolation, setIsLoadingDataIsolation] = useState(false);
+  const [isImportingLegacyData, setIsImportingLegacyData] = useState(false);
   const [permissions, setPermissions] = useState<PermissionInfo[]>([]);
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(false);
   const [requestingPermission, setRequestingPermission] =
@@ -323,6 +328,60 @@ export function SettingsDialog({
     }
   }, []);
 
+  const loadDataIsolationStatus = useCallback(async () => {
+    setIsLoadingDataIsolation(true);
+    try {
+      const status = await invoke<DataIsolationStatus>(
+        "get_data_isolation_status",
+      );
+      setDataIsolationStatus(status);
+    } catch (error) {
+      console.error("Failed to load data isolation status:", error);
+      setDataIsolationStatus(null);
+    } finally {
+      setIsLoadingDataIsolation(false);
+    }
+  }, []);
+
+  const handleImportLegacyData = useCallback(async () => {
+    setIsImportingLegacyData(true);
+    try {
+      const result = await invoke<LegacyImportResult>(
+        "import_legacy_donut_data",
+      );
+      await loadDataIsolationStatus();
+
+      if (result.imported_items > 0) {
+        showSuccessToast(
+          `Imported ${result.imported_items} DonutBrowser item${result.imported_items === 1 ? "" : "s"}`,
+          {
+            description:
+              result.skipped_items > 0
+                ? `${result.skipped_items} existing item${result.skipped_items === 1 ? "" : "s"} were skipped`
+                : undefined,
+          },
+        );
+      } else {
+        showSuccessToast("No new DonutBrowser data was imported", {
+          description:
+            result.skipped_items > 0
+              ? `${result.skipped_items} existing item${result.skipped_items === 1 ? "" : "s"} were skipped`
+              : "Nothing importable was found",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to import legacy DonutBrowser data:", error);
+      showErrorToast("Failed to import DonutBrowser data", {
+        description:
+          error instanceof Error
+            ? error.message
+            : String(error ?? "Unknown error"),
+      });
+    } finally {
+      setIsImportingLegacyData(false);
+    }
+  }, [loadDataIsolationStatus]);
+
   const handleRequestPermission = useCallback(
     async (permissionType: PermissionType) => {
       setRequestingPermission(permissionType);
@@ -483,6 +542,7 @@ export function SettingsDialog({
   useEffect(() => {
     if (isOpen) {
       loadSettings().catch(console.error);
+      loadDataIsolationStatus().catch(console.error);
       checkDefaultBrowserStatus().catch(console.error);
 
       // Check if we're on macOS
@@ -506,7 +566,13 @@ export function SettingsDialog({
         clearInterval(intervalId);
       };
     }
-  }, [isOpen, loadPermissions, checkDefaultBrowserStatus, loadSettings]);
+  }, [
+    isOpen,
+    loadPermissions,
+    checkDefaultBrowserStatus,
+    loadSettings,
+    loadDataIsolationStatus,
+  ]);
 
   // Initialize language selection when dialog opens or language loads
   useEffect(() => {
@@ -771,8 +837,8 @@ export function SettingsDialog({
             </LoadingButton>
 
             <p className="text-xs text-muted-foreground">
-              When set as default, Donut Browser will handle web links and allow
-              you to choose which profile to use.
+              When set as default, TwitterBrowser will handle web links and
+              allow you to choose which profile to use.
             </p>
           </div>
 
@@ -832,7 +898,7 @@ export function SettingsDialog({
               )}
 
               <p className="text-xs text-muted-foreground">
-                These permissions allow browsers launched from Donut Browser to
+                These permissions allow browsers launched from TwitterBrowser to
                 access system resources. Each website will still ask for your
                 permission individually.
               </p>
@@ -1073,6 +1139,137 @@ export function SettingsDialog({
               versions from their sources. This will force a fresh download of
               version information for all browsers.
             </p>
+
+            <div className="space-y-3 pt-2 border-t">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">Data Isolation</Label>
+                  <p className="text-xs text-muted-foreground">
+                    TwitterBrowser is isolated by default. DonutBrowser data is
+                    only brought in through explicit import.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    loadDataIsolationStatus().catch(console.error);
+                  }}
+                  disabled={isLoadingDataIsolation}
+                >
+                  Refresh
+                </Button>
+              </div>
+
+              {dataIsolationStatus ? (
+                <div className="space-y-3 rounded-lg border p-3 text-sm">
+                  <div className="space-y-1">
+                    <div className="font-medium">Active data directory</div>
+                    <div className="break-all text-xs text-muted-foreground">
+                      {dataIsolationStatus.active_data_dir}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="font-medium">Active cache directory</div>
+                    <div className="break-all text-xs text-muted-foreground">
+                      {dataIsolationStatus.active_cache_dir}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs text-muted-foreground">
+                        DonutBrowser data detected
+                      </span>
+                      <Badge
+                        variant={
+                          dataIsolationStatus.legacy_data_present
+                            ? "default"
+                            : "secondary"
+                        }
+                      >
+                        {dataIsolationStatus.legacy_data_present
+                          ? "Found"
+                          : "Not found"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs text-muted-foreground">
+                        Prior auto-import detected
+                      </span>
+                      <Badge
+                        variant={
+                          dataIsolationStatus.prior_auto_import_detected
+                            ? "default"
+                            : "secondary"
+                        }
+                      >
+                        {dataIsolationStatus.prior_auto_import_detected
+                          ? "Yes"
+                          : "No"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs text-muted-foreground">
+                        Quarantine backup available
+                      </span>
+                      <Badge
+                        variant={
+                          dataIsolationStatus.quarantine_backup_exists
+                            ? "default"
+                            : "secondary"
+                        }
+                      >
+                        {dataIsolationStatus.quarantine_backup_exists
+                          ? "Yes"
+                          : "No"}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {dataIsolationStatus.legacy_data_dir && (
+                    <div className="space-y-1">
+                      <div className="font-medium">
+                        Detected DonutBrowser directory
+                      </div>
+                      <div className="break-all text-xs text-muted-foreground">
+                        {dataIsolationStatus.legacy_data_dir}
+                      </div>
+                    </div>
+                  )}
+
+                  {dataIsolationStatus.latest_quarantine_backup_dir && (
+                    <div className="space-y-1">
+                      <div className="font-medium">
+                        Latest quarantine backup
+                      </div>
+                      <div className="break-all text-xs text-muted-foreground">
+                        {dataIsolationStatus.latest_quarantine_backup_dir}
+                      </div>
+                    </div>
+                  )}
+
+                  <LoadingButton
+                    variant="outline"
+                    className="w-full"
+                    isLoading={isImportingLegacyData}
+                    onClick={() => {
+                      handleImportLegacyData().catch(console.error);
+                    }}
+                    disabled={!dataIsolationStatus.legacy_data_present}
+                  >
+                    Import from DonutBrowser
+                  </LoadingButton>
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground">
+                  {isLoadingDataIsolation
+                    ? "Loading data isolation status..."
+                    : "Failed to load data isolation status."}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

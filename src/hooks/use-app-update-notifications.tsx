@@ -78,7 +78,7 @@ export function useAppUpdateNotifications() {
       console.error("Failed to update app:", error);
       showToast({
         type: "error",
-        title: "Failed to update Donut Browser",
+        title: "Failed to update TwitterBrowser",
         description: String(error),
         duration: 6000,
       });

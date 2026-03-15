@@ -26,6 +26,7 @@ import { ProfileSelectorDialog } from "@/components/profile-selector-dialog";
 import { ProfileSyncDialog } from "@/components/profile-sync-dialog";
 import { ProxyAssignmentDialog } from "@/components/proxy-assignment-dialog";
 import { ProxyManagementDialog } from "@/components/proxy-management-dialog";
+import { useRuntimeAppConfig } from "@/components/runtime-app-config-provider";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { SyncAllDialog } from "@/components/sync-all-dialog";
 import { SyncConfigDialog } from "@/components/sync-config-dialog";
@@ -67,6 +68,7 @@ interface PendingUrl {
 export default function Home() {
   // Mount global version update listener/toasts
   useVersionUpdater();
+  const runtimeConfig = useRuntimeAppConfig();
 
   // Use the new profile events hook for centralized profile management
   const {
@@ -955,18 +957,20 @@ export default function Home() {
         title: "Browser support ending soon",
         description: `Support for the following profiles will be removed on March 15, 2026: ${unsupportedNames}. Please migrate to Wayfern or Camoufox profiles.`,
         duration: 15000,
-        action: {
-          label: "Learn more",
-          onClick: () => {
-            const event = new CustomEvent("url-open-request", {
-              detail: "https://github.com/zhom/donutbrowser/discussions",
-            });
-            window.dispatchEvent(event);
-          },
-        },
+        action: runtimeConfig.support_url
+          ? {
+              label: "Learn more",
+              onClick: () => {
+                const event = new CustomEvent("url-open-request", {
+                  detail: runtimeConfig.support_url,
+                });
+                window.dispatchEvent(event);
+              },
+            }
+          : undefined,
       });
     }
-  }, [profiles]);
+  }, [profiles, runtimeConfig.support_url]);
 
   // Re-check Wayfern terms when a browser download completes
   useEffect(() => {
