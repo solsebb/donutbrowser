@@ -17,9 +17,6 @@ use crate::proxy_manager::PROXY_MANAGER;
 use crate::settings_manager::SettingsManager;
 use crate::sync;
 
-pub const CLOUD_API_URL: &str = "https://api.donutbrowser.com";
-pub const CLOUD_SYNC_URL: &str = "https://sync.donutbrowser.com";
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CloudUser {
   pub id: String,
@@ -120,6 +117,23 @@ lazy_static! {
   pub static ref CLOUD_AUTH: CloudAuthManager = CloudAuthManager::new();
 }
 
+pub fn hosted_cloud_enabled() -> bool {
+  crate::runtime_app_config::current().hosted_cloud_enabled()
+}
+
+pub fn cloud_sync_url() -> Option<&'static str> {
+  crate::runtime_app_config::current()
+    .cloud_sync_url
+    .as_deref()
+}
+
+fn require_cloud_api_url() -> Result<&'static str, String> {
+  crate::runtime_app_config::current()
+    .cloud_api_url
+    .as_deref()
+    .ok_or_else(|| "Hosted cloud is not configured for this TwitterBrowser build".to_string())
+}
+
 impl CloudAuthManager {
   fn new() -> Self {
     let state = Self::load_auth_state_from_disk();
@@ -138,7 +152,7 @@ impl CloudAuthManager {
   }
 
   fn get_vault_password() -> String {
-    env!("DONUT_BROWSER_VAULT_PASSWORD").to_string()
+    env!("TWITTERBROWSER_VAULT_PASSWORD").to_string()
   }
 
   // --- Encrypted file storage (same pattern as settings_manager.rs) ---
@@ -363,7 +377,8 @@ impl CloudAuthManager {
   // --- API methods ---
 
   pub async fn request_otp(&self, email: &str) -> Result<String, String> {
-    let url = format!("{CLOUD_API_URL}/api/auth/otp/request");
+    let cloud_api_url = require_cloud_api_url()?;
+    let url = format!("{cloud_api_url}/api/auth/otp/request");
     let response = self
       .client
       .post(&url)
@@ -387,7 +402,8 @@ impl CloudAuthManager {
   }
 
   pub async fn verify_otp(&self, email: &str, code: &str) -> Result<CloudAuthState, String> {
-    let url = format!("{CLOUD_API_URL}/api/auth/otp/verify");
+    let cloud_api_url = require_cloud_api_url()?;
+    let url = format!("{cloud_api_url}/api/auth/otp/verify");
     let response = self
       .client
       .post(&url)
@@ -467,7 +483,8 @@ impl CloudAuthManager {
     let refresh_token =
       Self::load_refresh_token()?.ok_or_else(|| "No refresh token stored".to_string())?;
 
-    let url = format!("{CLOUD_API_URL}/api/auth/token/refresh");
+    let cloud_api_url = require_cloud_api_url()?;
+    let url = format!("{cloud_api_url}/api/auth/token/refresh");
     let response = self
       .client
       .post(&url)
@@ -506,9 +523,10 @@ impl CloudAuthManager {
   }
 
   pub async fn fetch_profile(&self) -> Result<CloudUser, String> {
+    let cloud_api_url = require_cloud_api_url()?.to_string();
     let user = self
       .api_call_with_retry(|access_token| {
-        let url = format!("{CLOUD_API_URL}/api/auth/me");
+        let url = format!("{cloud_api_url}/api/auth/me");
         let client = self.client.clone();
         async move {
           let response = client
@@ -543,6 +561,10 @@ impl CloudAuthManager {
   }
 
   pub async fn get_or_refresh_sync_token(&self) -> Result<Option<String>, String> {
+    if !hosted_cloud_enabled() {
+      return Ok(None);
+    }
+
     if !self.is_logged_in().await {
       return Ok(None);
     }
@@ -555,9 +577,10 @@ impl CloudAuthManager {
     }
 
     // Fetch new sync token
+    let cloud_api_url = require_cloud_api_url()?.to_string();
     let sync_token = self
       .api_call_with_retry(|access_token| {
-        let url = format!("{CLOUD_API_URL}/api/auth/sync-token");
+        let url = format!("{cloud_api_url}/api/auth/sync-token");
         let client = self.client.clone();
         async move {
           let response = client
@@ -597,7 +620,14 @@ impl CloudAuthManager {
     // Try to call the logout API (best-effort)
     if let Ok(Some(access_token)) = Self::load_access_token() {
       let refresh_token = Self::load_refresh_token().ok().flatten();
-      let url = format!("{CLOUD_API_URL}/api/auth/logout");
+      let Some(cloud_api_url) = crate::runtime_app_config::current()
+        .cloud_api_url
+        .as_deref()
+      else {
+        self.clear_auth().await;
+        return Ok(());
+      };
+      let url = format!("{cloud_api_url}/api/auth/logout");
       let mut body = serde_json::json!({});
       if let Some(rt) = &refresh_token {
         body = serde_json::json!({ "refreshToken": rt });
@@ -619,11 +649,19 @@ impl CloudAuthManager {
   }
 
   pub async fn is_logged_in(&self) -> bool {
+    if !hosted_cloud_enabled() {
+      return false;
+    }
+
     let state = self.state.lock().await;
     state.is_some()
   }
 
   pub async fn has_active_paid_subscription(&self) -> bool {
+    if !hosted_cloud_enabled() {
+      return false;
+    }
+
     let state = self.state.lock().await;
     match &*state {
       Some(auth) => {
@@ -637,6 +675,10 @@ impl CloudAuthManager {
 
   /// Non-async version that uses try_lock, defaults to false if lock can't be acquired.
   pub fn has_active_paid_subscription_sync(&self) -> bool {
+    if !hosted_cloud_enabled() {
+      return false;
+    }
+
     match self.state.try_lock() {
       Ok(state) => match &*state {
         Some(auth) => {
@@ -667,6 +709,10 @@ impl CloudAuthManager {
   }
 
   pub async fn get_user(&self) -> Option<CloudAuthState> {
+    if !hosted_cloud_enabled() {
+      return None;
+    }
+
     let state = self.state.lock().await;
     state.clone()
   }
@@ -710,6 +756,10 @@ impl CloudAuthManager {
 
   /// Fetch proxy configuration from the cloud backend
   async fn fetch_proxy_config(&self) -> Result<Option<CloudProxyConfigResponse>, String> {
+    if !hosted_cloud_enabled() {
+      return Ok(None);
+    }
+
     // Check cached user state for proxy bandwidth (subscription or extra)
     {
       let state = self.state.lock().await;
@@ -720,9 +770,10 @@ impl CloudAuthManager {
       }
     }
 
+    let cloud_api_url = require_cloud_api_url()?.to_string();
     match self
       .api_call_with_retry(|access_token| {
-        let url = format!("{CLOUD_API_URL}/api/proxy/config");
+        let url = format!("{cloud_api_url}/api/proxy/config");
         let client = self.client.clone();
         async move {
           let response = client
@@ -800,9 +851,10 @@ impl CloudAuthManager {
 
   /// Report the number of sync-enabled profiles to the cloud backend
   pub async fn report_sync_profile_count(&self, count: i64) -> Result<(), String> {
+    let cloud_api_url = require_cloud_api_url()?.to_string();
     self
       .api_call_with_retry(|access_token| {
-        let url = format!("{CLOUD_API_URL}/api/auth/sync-profile-usage");
+        let url = format!("{cloud_api_url}/api/auth/sync-profile-usage");
         let client = reqwest::Client::new();
         async move {
           let response = client
@@ -827,9 +879,10 @@ impl CloudAuthManager {
 
   /// Fetch country list from the cloud backend
   pub async fn fetch_countries(&self) -> Result<Vec<LocationItem>, String> {
+    let cloud_api_url = require_cloud_api_url()?.to_string();
     self
       .api_call_with_retry(|access_token| {
-        let url = format!("{CLOUD_API_URL}/api/proxy/locations/countries");
+        let url = format!("{cloud_api_url}/api/proxy/locations/countries");
         let client = self.client.clone();
         async move {
           let response = client
@@ -857,12 +910,10 @@ impl CloudAuthManager {
   /// Fetch region list for a country from the cloud backend
   pub async fn fetch_regions(&self, country: &str) -> Result<Vec<LocationItem>, String> {
     let country = country.to_string();
+    let cloud_api_url = require_cloud_api_url()?.to_string();
     self
       .api_call_with_retry(move |access_token| {
-        let url = format!(
-          "{CLOUD_API_URL}/api/proxy/locations/regions?country={}",
-          country
-        );
+        let url = format!("{cloud_api_url}/api/proxy/locations/regions?country={country}");
         let client = reqwest::Client::new();
         async move {
           let response = client
@@ -895,12 +946,10 @@ impl CloudAuthManager {
   ) -> Result<Vec<LocationItem>, String> {
     let country = country.to_string();
     let region = region.map(|s| s.to_string());
+    let cloud_api_url = require_cloud_api_url()?.to_string();
     self
       .api_call_with_retry(move |access_token| {
-        let mut url = format!(
-          "{CLOUD_API_URL}/api/proxy/locations/cities?country={}",
-          country
-        );
+        let mut url = format!("{cloud_api_url}/api/proxy/locations/cities?country={country}");
         if let Some(ref r) = region {
           url.push_str(&format!("&region={}", r));
         }
@@ -938,12 +987,10 @@ impl CloudAuthManager {
     let country = country.to_string();
     let region = region.map(|s| s.to_string());
     let city = city.map(|s| s.to_string());
+    let cloud_api_url = require_cloud_api_url()?.to_string();
     self
       .api_call_with_retry(move |access_token| {
-        let mut url = format!(
-          "{CLOUD_API_URL}/api/proxy/locations/isps?country={}",
-          country
-        );
+        let mut url = format!("{cloud_api_url}/api/proxy/locations/isps?country={country}");
         if let Some(ref r) = region {
           url.push_str(&format!("&region={}", r));
         }
@@ -981,9 +1028,10 @@ impl CloudAuthManager {
       return Ok(());
     }
 
+    let cloud_api_url = require_cloud_api_url()?.to_string();
     let token = self
       .api_call_with_retry(|access_token| {
-        let url = format!("{CLOUD_API_URL}/api/auth/wayfern-start");
+        let url = format!("{cloud_api_url}/api/auth/wayfern-start");
         let client = reqwest::Client::new();
         async move {
           let response = client
@@ -1029,6 +1077,11 @@ impl CloudAuthManager {
 
   /// Background loop that refreshes the sync token periodically
   pub async fn start_sync_token_refresh_loop(app_handle: tauri::AppHandle) {
+    if !hosted_cloud_enabled() {
+      log::info!("Hosted cloud is disabled; skipping cloud refresh loop");
+      return;
+    }
+
     let mut wayfern_refresh_counter: u32 = 0;
     loop {
       tokio::time::sleep(std::time::Duration::from_secs(600)).await; // 10 minutes
@@ -1101,6 +1154,9 @@ impl CloudAuthManager {
 
 #[tauri::command]
 pub async fn cloud_request_otp(email: String) -> Result<String, String> {
+  if !hosted_cloud_enabled() {
+    return Err("Hosted cloud is disabled for this TwitterBrowser build".to_string());
+  }
   CLOUD_AUTH.request_otp(&email).await
 }
 
@@ -1110,6 +1166,10 @@ pub async fn cloud_verify_otp(
   email: String,
   code: String,
 ) -> Result<CloudAuthState, String> {
+  if !hosted_cloud_enabled() {
+    return Err("Hosted cloud is disabled for this TwitterBrowser build".to_string());
+  }
+
   let state = CLOUD_AUTH.verify_otp(&email, &code).await?;
 
   let has_subscription = CLOUD_AUTH.has_active_paid_subscription().await;
@@ -1152,11 +1212,17 @@ pub async fn cloud_verify_otp(
 
 #[tauri::command]
 pub async fn cloud_get_user() -> Result<Option<CloudAuthState>, String> {
+  if !hosted_cloud_enabled() {
+    return Ok(None);
+  }
   Ok(CLOUD_AUTH.get_user().await)
 }
 
 #[tauri::command]
 pub async fn cloud_refresh_profile() -> Result<CloudUser, String> {
+  if !hosted_cloud_enabled() {
+    return Err("Hosted cloud is disabled for this TwitterBrowser build".to_string());
+  }
   CLOUD_AUTH.fetch_profile().await
 }
 
@@ -1167,7 +1233,7 @@ pub async fn cloud_logout(app_handle: tauri::AppHandle) -> Result<(), String> {
   // Clear sync settings if they point to the cloud URL (prevent leak into Self-Hosted tab)
   let manager = crate::settings_manager::SettingsManager::instance();
   if let Ok(sync_settings) = manager.get_sync_settings() {
-    if sync_settings.sync_server_url.as_deref() == Some(CLOUD_SYNC_URL) {
+    if sync_settings.sync_server_url.as_deref() == cloud_sync_url() {
       let _ = manager.save_sync_server_url(None);
     }
   }
@@ -1182,27 +1248,42 @@ pub async fn cloud_logout(app_handle: tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn cloud_has_active_subscription() -> Result<bool, String> {
+  if !hosted_cloud_enabled() {
+    return Ok(false);
+  }
   Ok(CLOUD_AUTH.has_active_paid_subscription().await)
 }
 
 #[tauri::command]
 pub async fn cloud_get_wayfern_token() -> Result<Option<String>, String> {
+  if !hosted_cloud_enabled() {
+    return Ok(None);
+  }
   Ok(CLOUD_AUTH.get_wayfern_token().await)
 }
 
 #[tauri::command]
 pub async fn cloud_refresh_wayfern_token() -> Result<Option<String>, String> {
+  if !hosted_cloud_enabled() {
+    return Ok(None);
+  }
   CLOUD_AUTH.request_wayfern_token().await?;
   Ok(CLOUD_AUTH.get_wayfern_token().await)
 }
 
 #[tauri::command]
 pub async fn cloud_get_countries() -> Result<Vec<LocationItem>, String> {
+  if !hosted_cloud_enabled() {
+    return Err("Hosted cloud is disabled for this TwitterBrowser build".to_string());
+  }
   CLOUD_AUTH.fetch_countries().await
 }
 
 #[tauri::command]
 pub async fn cloud_get_regions(country: String) -> Result<Vec<LocationItem>, String> {
+  if !hosted_cloud_enabled() {
+    return Err("Hosted cloud is disabled for this TwitterBrowser build".to_string());
+  }
   CLOUD_AUTH.fetch_regions(&country).await
 }
 
@@ -1211,6 +1292,9 @@ pub async fn cloud_get_cities(
   country: String,
   region: Option<String>,
 ) -> Result<Vec<LocationItem>, String> {
+  if !hosted_cloud_enabled() {
+    return Err("Hosted cloud is disabled for this TwitterBrowser build".to_string());
+  }
   CLOUD_AUTH.fetch_cities(&country, region.as_deref()).await
 }
 
@@ -1220,6 +1304,9 @@ pub async fn cloud_get_isps(
   region: Option<String>,
   city: Option<String>,
 ) -> Result<Vec<LocationItem>, String> {
+  if !hosted_cloud_enabled() {
+    return Err("Hosted cloud is disabled for this TwitterBrowser build".to_string());
+  }
   CLOUD_AUTH
     .fetch_isps(&country, region.as_deref(), city.as_deref())
     .await
@@ -1233,6 +1320,10 @@ pub async fn create_cloud_location_proxy(
   city: Option<String>,
   isp: Option<String>,
 ) -> Result<crate::proxy_manager::StoredProxy, String> {
+  if !hosted_cloud_enabled() {
+    return Err("Hosted cloud is disabled for this TwitterBrowser build".to_string());
+  }
+
   // If no cloud proxy exists yet, attempt to sync it first
   if !PROXY_MANAGER.has_cloud_proxy() {
     CLOUD_AUTH.sync_cloud_proxy().await;
@@ -1265,6 +1356,10 @@ struct ProxyUsageResponse {
 
 #[tauri::command]
 pub async fn cloud_get_proxy_usage() -> Result<Option<CloudProxyUsage>, String> {
+  if !hosted_cloud_enabled() {
+    return Ok(None);
+  }
+
   let (has_proxy, cached_recurring, cached_extra) = {
     let state = CLOUD_AUTH.state.lock().await;
     match &*state {
@@ -1286,9 +1381,10 @@ pub async fn cloud_get_proxy_usage() -> Result<Option<CloudProxyUsage>, String> 
   }
 
   // Fetch live usage from the API
+  let cloud_api_url = require_cloud_api_url()?.to_string();
   match CLOUD_AUTH
     .api_call_with_retry(|access_token| {
-      let url = format!("{CLOUD_API_URL}/api/proxy/usage");
+      let url = format!("{cloud_api_url}/api/proxy/usage");
       let client = reqwest::Client::new();
       async move {
         let response = client

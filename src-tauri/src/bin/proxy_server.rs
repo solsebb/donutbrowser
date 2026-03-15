@@ -1,12 +1,12 @@
 #![allow(clippy::uninlined_format_args)]
 
 use clap::{Arg, Command};
-use donutbrowser_lib::proxy_runner::{
+use std::process;
+use twitterbrowser_lib::proxy_runner::{
   start_proxy_process_with_profile, stop_all_proxy_processes, stop_proxy_process,
 };
-use donutbrowser_lib::proxy_server::run_proxy_server;
-use donutbrowser_lib::proxy_storage::get_proxy_config;
-use std::process;
+use twitterbrowser_lib::proxy_server::run_proxy_server;
+use twitterbrowser_lib::proxy_storage::get_proxy_config;
 
 fn set_high_priority() {
   #[cfg(unix)]
@@ -106,7 +106,7 @@ async fn main() {
     }
   }));
 
-  let matches = Command::new("donut-proxy")
+  let matches = Command::new("twitter-proxy")
     .subcommand(
       Command::new("proxy")
         .about("Manage proxy servers")
@@ -264,7 +264,7 @@ async fn main() {
         }
       } else if let Some(upstream) = stop_matches.get_one::<String>("upstream") {
         // Find proxies with this upstream URL
-        let configs = donutbrowser_lib::proxy_storage::list_proxy_configs();
+        let configs = twitterbrowser_lib::proxy_storage::list_proxy_configs();
         let matching_configs: Vec<_> = configs
           .iter()
           .filter(|config| config.upstream_url == *upstream)
@@ -297,7 +297,7 @@ async fn main() {
         }
       }
     } else if proxy_matches.subcommand_matches("list").is_some() {
-      let configs = donutbrowser_lib::proxy_storage::list_proxy_configs();
+      let configs = twitterbrowser_lib::proxy_storage::list_proxy_configs();
       // Use println! here because this needs to go to stdout for parsing
       println!("{}", serde_json::to_string(&configs).unwrap());
       process::exit(0);
@@ -381,7 +381,7 @@ async fn main() {
       let config = {
         let mut attempts = 0;
         loop {
-          if let Some(config) = donutbrowser_lib::vpn_worker_storage::get_vpn_worker_config(id) {
+          if let Some(config) = twitterbrowser_lib::vpn_worker_storage::get_vpn_worker_config(id) {
             log::info!(
               "Found VPN worker config: id={}, vpn_type={}, vpn_id={}",
               config.id,
@@ -423,7 +423,7 @@ async fn main() {
 
       match config.vpn_type.as_str() {
         "wireguard" => {
-          let wg_config = match donutbrowser_lib::vpn::parse_wireguard_config(&vpn_config_data) {
+          let wg_config = match twitterbrowser_lib::vpn::parse_wireguard_config(&vpn_config_data) {
             Ok(c) => c,
             Err(e) => {
               log::error!("Failed to parse WireGuard config: {}", e);
@@ -432,14 +432,14 @@ async fn main() {
           };
 
           let server =
-            donutbrowser_lib::vpn::socks5_server::WireGuardSocks5Server::new(wg_config, port);
+            twitterbrowser_lib::vpn::socks5_server::WireGuardSocks5Server::new(wg_config, port);
           if let Err(e) = server.run(id.clone()).await {
             log::error!("VPN worker failed: {}", e);
             process::exit(1);
           }
         }
         "openvpn" => {
-          let ovpn_config = match donutbrowser_lib::vpn::parse_openvpn_config(&vpn_config_data) {
+          let ovpn_config = match twitterbrowser_lib::vpn::parse_openvpn_config(&vpn_config_data) {
             Ok(c) => c,
             Err(e) => {
               log::error!("Failed to parse OpenVPN config: {}", e);
@@ -448,7 +448,7 @@ async fn main() {
           };
 
           let server =
-            donutbrowser_lib::vpn::openvpn_socks5::OpenVpnSocks5Server::new(ovpn_config, port);
+            twitterbrowser_lib::vpn::openvpn_socks5::OpenVpnSocks5Server::new(ovpn_config, port);
           if let Err(e) = server.run(id.clone()).await {
             log::error!("VPN worker failed: {}", e);
             process::exit(1);

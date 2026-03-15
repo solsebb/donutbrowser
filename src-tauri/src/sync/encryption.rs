@@ -13,7 +13,7 @@ fn get_e2e_password_path() -> std::path::PathBuf {
 }
 
 fn get_vault_password() -> String {
-  env!("DONUT_BROWSER_VAULT_PASSWORD").to_string()
+  env!("TWITTERBROWSER_VAULT_PASSWORD").to_string()
 }
 
 pub fn store_e2e_password(password: &str) -> Result<(), String> {

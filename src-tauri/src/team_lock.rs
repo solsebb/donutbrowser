@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 
-use crate::cloud_auth::{CloudAuthManager, CLOUD_API_URL, CLOUD_AUTH};
+use crate::cloud_auth::{hosted_cloud_enabled, CloudAuthManager, CLOUD_AUTH};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProfileLockInfo {
@@ -41,6 +41,13 @@ lazy_static! {
   pub static ref TEAM_LOCK: TeamLockManager = TeamLockManager::new();
 }
 
+fn require_cloud_api_url() -> Result<&'static str, String> {
+  crate::runtime_app_config::current()
+    .cloud_api_url
+    .as_deref()
+    .ok_or_else(|| "Hosted cloud is not configured for this TwitterBrowser build".to_string())
+}
+
 impl TeamLockManager {
   fn new() -> Self {
     Self {
@@ -51,6 +58,10 @@ impl TeamLockManager {
   }
 
   pub async fn connect(&self, team_id: &str) {
+    if !hosted_cloud_enabled() {
+      return;
+    }
+
     log::info!("Connecting team lock manager for team: {team_id}");
 
     {
@@ -87,13 +98,14 @@ impl TeamLockManager {
   }
 
   pub async fn acquire_lock(&self, profile_id: &str) -> Result<(), String> {
+    let cloud_api_url = require_cloud_api_url()?;
     let team_id = self.get_team_id().await?;
     let client = Client::new();
 
     let access_token =
       CloudAuthManager::load_access_token()?.ok_or_else(|| "Not logged in".to_string())?;
 
-    let url = format!("{CLOUD_API_URL}/api/teams/{team_id}/locks");
+    let url = format!("{cloud_api_url}/api/teams/{team_id}/locks");
     let response = client
       .post(&url)
       .header("Authorization", format!("Bearer {access_token}"))
@@ -144,13 +156,14 @@ impl TeamLockManager {
   }
 
   pub async fn release_lock(&self, profile_id: &str) -> Result<(), String> {
+    let cloud_api_url = require_cloud_api_url()?;
     let team_id = self.get_team_id().await?;
     let client = Client::new();
 
     let access_token =
       CloudAuthManager::load_access_token()?.ok_or_else(|| "Not logged in".to_string())?;
 
-    let url = format!("{CLOUD_API_URL}/api/teams/{team_id}/locks/{profile_id}");
+    let url = format!("{cloud_api_url}/api/teams/{team_id}/locks/{profile_id}");
     let _ = client
       .delete(&url)
       .header("Authorization", format!("Bearer {access_token}"))
@@ -191,11 +204,12 @@ impl TeamLockManager {
   }
 
   async fn fetch_initial_locks(&self, team_id: &str) -> Result<(), String> {
+    let cloud_api_url = require_cloud_api_url()?;
     let client = Client::new();
     let access_token =
       CloudAuthManager::load_access_token()?.ok_or_else(|| "Not logged in".to_string())?;
 
-    let url = format!("{CLOUD_API_URL}/api/teams/{team_id}/locks");
+    let url = format!("{cloud_api_url}/api/teams/{team_id}/locks");
     let response = client
       .get(&url)
       .header("Authorization", format!("Bearer {access_token}"))
@@ -222,6 +236,10 @@ impl TeamLockManager {
   }
 
   async fn start_heartbeat_loop(&self) {
+    if !hosted_cloud_enabled() {
+      return;
+    }
+
     let mut handle = self.heartbeat_handle.lock().await;
     if let Some(h) = handle.take() {
       h.abort();
@@ -252,7 +270,13 @@ impl TeamLockManager {
         for profile_id in held_locks {
           let client = Client::new();
           if let Ok(Some(token)) = CloudAuthManager::load_access_token() {
-            let url = format!("{CLOUD_API_URL}/api/teams/{team_id}/locks/{profile_id}/heartbeat");
+            let Some(cloud_api_url) = crate::runtime_app_config::current()
+              .cloud_api_url
+              .as_deref()
+            else {
+              continue;
+            };
+            let url = format!("{cloud_api_url}/api/teams/{team_id}/locks/{profile_id}/heartbeat");
             let _ = client
               .post(&url)
               .header("Authorization", format!("Bearer {token}"))

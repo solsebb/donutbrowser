@@ -191,7 +191,7 @@ impl SettingsManager {
   }
 
   fn get_vault_password() -> String {
-    env!("DONUT_BROWSER_VAULT_PASSWORD").to_string()
+    env!("TWITTERBROWSER_VAULT_PASSWORD").to_string()
   }
 
   pub async fn generate_api_token(
@@ -862,8 +862,11 @@ pub async fn get_sync_settings(app_handle: tauri::AppHandle) -> Result<SyncSetti
       .get_or_refresh_sync_token()
       .await
       .map_err(|e| format!("Failed to get cloud sync token: {e}"))?;
+    let Some(sync_server_url) = crate::cloud_auth::cloud_sync_url() else {
+      return Ok(SyncSettings::default());
+    };
     return Ok(SyncSettings {
-      sync_server_url: Some(crate::cloud_auth::CLOUD_SYNC_URL.to_string()),
+      sync_server_url: Some(sync_server_url.to_string()),
       sync_token,
     });
   }

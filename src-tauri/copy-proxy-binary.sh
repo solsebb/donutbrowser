@@ -99,9 +99,9 @@ copy_binary() {
   fi
 }
 
-# Copy donut-proxy binary
-copy_binary "donut-proxy"
+# Copy twitter-proxy binary
+copy_binary "twitter-proxy"
 
-# Copy donut-daemon binary
-copy_binary "donut-daemon"
+# Copy twitter-daemon binary
+copy_binary "twitter-daemon"
 

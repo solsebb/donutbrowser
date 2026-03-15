@@ -1,6 +1,6 @@
-# Self-Hosting Donut Sync
+# Self-Hosting TwitterBrowser Sync
 
-Donut Sync is the synchronization server for Donut Browser. It allows you to sync your profiles, proxies, and groups across multiple devices. This guide covers how to self-host it using Docker.
+TwitterBrowser Sync is the synchronization server for TwitterBrowser. It allows you to sync your profiles, proxies, and groups across multiple devices. This guide covers how to self-host it using Docker.
 
 ## Prerequisites
 
@@ -13,8 +13,10 @@ Donut Sync is the synchronization server for Donut Browser. It allows you to syn
 
 ```yaml
 services:
-  donut-sync:
-    image: donutbrowser/donut-sync:latest
+  twitterbrowser-sync:
+    build:
+      context: ./donut-sync
+    image: twitterbrowser-sync:local
     ports:
       - "3929:3929"
     environment:
@@ -24,7 +26,7 @@ services:
       - S3_REGION=us-east-1
       - S3_ACCESS_KEY_ID=minioadmin
       - S3_SECRET_ACCESS_KEY=minioadmin
-      - S3_BUCKET=donut-sync
+      - S3_BUCKET=twitterbrowser-sync
       - S3_FORCE_PATH_STYLE=true
     depends_on:
       minio:
@@ -73,7 +75,7 @@ curl http://localhost:3929/readyz
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `SYNC_TOKEN` | Yes | - | Bearer token used to authenticate requests from Donut Browser clients |
+| `SYNC_TOKEN` | Yes | - | Bearer token used to authenticate requests from TwitterBrowser clients |
 | `PORT` | No | `3929` | Port the sync server listens on |
 | `S3_ENDPOINT` | No | - | S3-compatible endpoint URL (e.g., `http://minio:9000` or `https://s3.amazonaws.com`) |
 | `S3_REGION` | No | `us-east-1` | S3 region |
@@ -90,8 +92,10 @@ Instead of running MinIO, you can use any S3-compatible storage service. Remove 
 
 ```yaml
 services:
-  donut-sync:
-    image: donutbrowser/donut-sync:latest
+  twitterbrowser-sync:
+    build:
+      context: ./donut-sync
+    image: twitterbrowser-sync:local
     ports:
       - "3929:3929"
     environment:
@@ -106,8 +110,10 @@ services:
 
 ```yaml
 services:
-  donut-sync:
-    image: donutbrowser/donut-sync:latest
+  twitterbrowser-sync:
+    build:
+      context: ./donut-sync
+    image: twitterbrowser-sync:local
     ports:
       - "3929:3929"
     environment:
@@ -124,9 +130,9 @@ services:
 
 Any service that implements the S3 API (e.g., Backblaze B2, DigitalOcean Spaces, Wasabi) can be used. Set `S3_ENDPOINT` to the service's endpoint URL and `S3_FORCE_PATH_STYLE=true` if required by the provider.
 
-## Configuring the Donut Browser Client
+## Configuring the TwitterBrowser Client
 
-1. Open Donut Browser
+1. Open TwitterBrowser
 2. Click the sync icon in the header to open the Sync Configuration dialog
 3. Enter the **Server URL** (e.g., `http://your-server:3929`)
 4. Enter the **Sync Token** (the value you set for `SYNC_TOKEN`)
@@ -144,7 +150,7 @@ Once configured, you can enable sync on individual profiles, proxies, and groups
 ## Security Considerations
 
 - **Use a strong `SYNC_TOKEN`**: Generate a random token (e.g., `openssl rand -hex 32`) and keep it secret.
-- **HTTPS**: In production, place a reverse proxy (e.g., Nginx, Caddy, Traefik) in front of Donut Sync to terminate TLS. The sync token is sent as a Bearer token in the `Authorization` header and should not be transmitted over plain HTTP.
+- **HTTPS**: In production, place a reverse proxy (e.g., Nginx, Caddy, Traefik) in front of TwitterBrowser Sync to terminate TLS. The sync token is sent as a Bearer token in the `Authorization` header and should not be transmitted over plain HTTP.
 - **Network isolation**: If running on a VPS, consider restricting access to the sync port using firewall rules or binding only to localhost behind a reverse proxy.
 - **S3 credentials**: Use dedicated IAM credentials with minimal permissions (read/write to the sync bucket only).
 

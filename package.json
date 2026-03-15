@@ -1,5 +1,5 @@
 {
-  "name": "donutbrowser",
+  "name": "twitterbrowser",
   "private": true,
   "license": "AGPL-3.0",
   "version": "0.16.1",
@@ -8,6 +8,7 @@
     "dev": "next dev --turbopack -p 12341",
     "build": "next build",
     "start": "next start",
+    "prepare:app-icons": "node scripts/prepare-app-icons.mjs",
     "test": "pnpm test:rust:unit && pnpm test:sync-e2e",
     "test:rust": "cd src-tauri && cargo test",
     "test:rust:unit": "cd src-tauri && cargo test --lib && cargo test --test donut_proxy_integration",

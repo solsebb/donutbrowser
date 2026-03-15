@@ -1,11 +1,11 @@
 [package]
-name = "donutbrowser"
+name = "twitterbrowser"
 version = "0.16.1"
 description = "Simple Yet Powerful Anti-Detect Browser"
 authors = ["zhom@github"]
 edition = "2021"
 rust-version = "1.88"
-default-run = "donutbrowser"
+default-run = "twitterbrowser"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -13,20 +13,20 @@ default-run = "donutbrowser"
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "donutbrowser_lib"
+name = "twitterbrowser_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 doctest = false
 
 [[bin]]
-name = "donutbrowser"
+name = "twitterbrowser"
 path = "src/main.rs"
 
 [[bin]]
-name = "donut-proxy"
+name = "twitter-proxy"
 path = "src/bin/proxy_server.rs"
 
 [[bin]]
-name = "donut-daemon"
+name = "twitter-daemon"
 path = "src/bin/donut_daemon.rs"
 
 [build-dependencies]

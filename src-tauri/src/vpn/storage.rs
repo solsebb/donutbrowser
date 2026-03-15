@@ -101,7 +101,6 @@ impl VpnStorage {
     if !vpn_dir.exists() {
       let _ = fs::create_dir_all(&vpn_dir);
     }
-    Self::migrate_from_old_location(&vpn_dir);
     vpn_dir.join("vpn_configs.json")
   }
 
@@ -131,22 +130,6 @@ impl VpnStorage {
     }
 
     key
-  }
-
-  /// Migrate VPN configs from the old ProjectDirs location to the new app_dirs location.
-  fn migrate_from_old_location(new_dir: &std::path::Path) {
-    let old_dir = match directories::ProjectDirs::from("com", "donut", "donutbrowser") {
-      Some(dirs) => dirs.data_local_dir().to_path_buf(),
-      None => return,
-    };
-
-    for filename in &["vpn_configs.json", ".vpn_key"] {
-      let old_path = old_dir.join(filename);
-      let new_path = new_dir.join(filename);
-      if old_path.exists() && !new_path.exists() {
-        let _ = fs::copy(&old_path, &new_path);
-      }
-    }
   }
 
   /// Load storage data from disk

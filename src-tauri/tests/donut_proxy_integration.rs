@@ -48,7 +48,7 @@ async fn start_mock_http_server(response_body: &'static str) -> (u16, tokio::tas
   (port, handle)
 }
 
-/// Setup function to ensure donut-proxy binary exists and cleanup stale proxies
+/// Setup function to ensure twitter-proxy binary exists and cleanup stale proxies
 async fn setup_test() -> Result<std::path::PathBuf, Box<dyn std::error::Error + Send + Sync>> {
   let cargo_manifest_dir = std::env::var("CARGO_MANIFEST_DIR")?;
   let project_root = std::path::PathBuf::from(cargo_manifest_dir)
@@ -56,11 +56,11 @@ async fn setup_test() -> Result<std::path::PathBuf, Box<dyn std::error::Error + 
     .unwrap()
     .to_path_buf();
 
-  // Build donut-proxy binary if it doesn't exist
+  // Build twitter-proxy binary if it doesn't exist
   let proxy_binary_name = if cfg!(windows) {
-    "donut-proxy.exe"
+    "twitter-proxy.exe"
   } else {
-    "donut-proxy"
+    "twitter-proxy"
   };
   let proxy_binary = project_root
     .join("src-tauri")
@@ -69,19 +69,19 @@ async fn setup_test() -> Result<std::path::PathBuf, Box<dyn std::error::Error + 
     .join(proxy_binary_name);
 
   if !proxy_binary.exists() {
-    println!("Building donut-proxy binary for integration tests...");
+    println!("Building twitter-proxy binary for integration tests...");
     let build_status = std::process::Command::new("cargo")
-      .args(["build", "--bin", "donut-proxy"])
+      .args(["build", "--bin", "twitter-proxy"])
       .current_dir(project_root.join("src-tauri"))
       .status()?;
 
     if !build_status.success() {
-      return Err("Failed to build donut-proxy binary".into());
+      return Err("Failed to build twitter-proxy binary".into());
     }
   }
 
   if !proxy_binary.exists() {
-    return Err("donut-proxy binary was not created successfully".into());
+    return Err("twitter-proxy binary was not created successfully".into());
   }
 
   // Clean up any stale proxies from previous test runs
@@ -557,7 +557,7 @@ async fn test_traffic_tracking() -> Result<(), Box<dyn std::error::Error + Send 
   // Wait for traffic stats to be flushed (happens every second)
   sleep(Duration::from_secs(2)).await;
 
-  let traffic_stats_dir = donutbrowser_lib::app_dirs::cache_dir().join("traffic_stats");
+  let traffic_stats_dir = twitterbrowser_lib::app_dirs::cache_dir().join("traffic_stats");
   let stats_file = traffic_stats_dir.join(format!("{}.json", proxy_id));
 
   if stats_file.exists() {
@@ -696,7 +696,7 @@ async fn test_bypass_rules_http_direct() -> Result<(), Box<dyn std::error::Error
   let (upstream_port, upstream_handle) = start_mock_http_server("UPSTREAM-PROXY-RESPONSE").await;
   println!("Mock upstream proxy listening on port {upstream_port}");
 
-  // Start donut-proxy with upstream + bypass rules for "127.0.0.1"
+  // Start twitter-proxy with upstream + bypass rules for "127.0.0.1"
   let bypass_rules = serde_json::json!(["127.0.0.1"]).to_string();
   let output = TestUtils::execute_command(
     &binary_path,
@@ -728,7 +728,7 @@ async fn test_bypass_rules_http_direct() -> Result<(), Box<dyn std::error::Error
   let local_port = config["localPort"].as_u64().unwrap() as u16;
   tracker.track_proxy(proxy_id.clone());
 
-  println!("Donut-proxy started on port {local_port} with bypass rules for 127.0.0.1");
+  println!("twitter-proxy started on port {local_port} with bypass rules for 127.0.0.1");
 
   sleep(Duration::from_millis(500)).await;
 
@@ -916,7 +916,7 @@ async fn test_bypass_rules_in_config() -> Result<(), Box<dyn std::error::Error +
   sleep(Duration::from_millis(500)).await;
 
   // Read the proxy config file from disk to verify bypass rules are persisted
-  let proxies_dir = donutbrowser_lib::app_dirs::proxy_workers_dir();
+  let proxies_dir = twitterbrowser_lib::app_dirs::proxy_workers_dir();
   let config_file = proxies_dir.join(format!("{proxy_id}.json"));
 
   assert!(

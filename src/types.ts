@@ -72,6 +72,33 @@ export interface SyncSettings {
   sync_token?: string;
 }
 
+export interface RuntimeAppConfig {
+  display_name: string;
+  homepage_url?: string | null;
+  support_url?: string | null;
+  account_url?: string | null;
+  hosted_cloud_enabled: boolean;
+  updater_enabled: boolean;
+  release_page_base_url?: string | null;
+}
+
+export interface DataIsolationStatus {
+  active_data_dir: string;
+  active_cache_dir: string;
+  legacy_data_dir?: string | null;
+  legacy_data_present: boolean;
+  prior_auto_import_detected: boolean;
+  quarantine_backup_exists: boolean;
+  latest_quarantine_backup_dir?: string | null;
+}
+
+export interface LegacyImportResult {
+  source_data_dir: string;
+  target_data_dir: string;
+  imported_items: number;
+  skipped_items: number;
+}
+
 export interface CloudUser {
   id: string;
   email: string;

@@ -90,12 +90,12 @@
       "title": "默认浏览器",
       "setAsDefault": "设为默认浏览器",
       "alreadyDefault": "已是默认浏览器",
-      "description": "设为默认后，Donut Browser 将处理网页链接并允许您选择使用哪个配置文件。"
+      "description": "设为默认后，TwitterBrowser 将处理网页链接并允许您选择使用哪个配置文件。"
     },
     "permissions": {
       "title": "系统权限",
       "loading": "加载权限中...",
-      "description": "这些权限允许从 Donut Browser 启动的浏览器访问系统资源。每个网站仍会单独请求您的权限。",
+      "description": "这些权限允许从 TwitterBrowser 启动的浏览器访问系统资源。每个网站仍会单独请求您的权限。",
       "microphone": "麦克风",
       "microphoneDescription": "浏览器应用程序的麦克风访问权限",
       "camera": "摄像头",
@@ -136,7 +136,7 @@
       "clearCacheDescription": "清除所有缓存的浏览器版本数据并从源刷新所有浏览器版本。这将强制重新下载所有浏览器的版本信息。"
     },
     "disableAutoUpdates": "禁用应用自动更新",
-    "disableAutoUpdatesDescription": "阻止应用程序自动检查和安装 Donut Browser 更新。浏览器更新不受影响。"
+    "disableAutoUpdatesDescription": "阻止应用程序自动检查和安装 TwitterBrowser 更新。浏览器更新不受影响。"
   },
   "header": {
     "searchPlaceholder": "搜索配置文件...",

@@ -8,12 +8,24 @@ lazy_static::lazy_static! {
   static ref EPHEMERAL_DIRS: Mutex<HashMap<String, PathBuf>> = Mutex::new(HashMap::new());
 }
 
+fn ephemeral_base_dir_name() -> &'static str {
+  crate::runtime_app_config::current()
+    .ephemeral_base_dir_name
+    .as_str()
+}
+
+fn ephemeral_volume_name() -> &'static str {
+  crate::runtime_app_config::current()
+    .ephemeral_volume_name
+    .as_str()
+}
+
 /// Get or create the RAM-backed base directory for ephemeral profiles.
 /// Linux: /dev/shm (always tmpfs). macOS: RAM disk via hdiutil. Windows: imdisk RAM disk.
 fn get_ephemeral_base_dir() -> Result<PathBuf, String> {
   #[cfg(target_os = "linux")]
   {
-    let base = PathBuf::from("/dev/shm/donut-ephemeral");
+    let base = PathBuf::from(format!("/dev/shm/{}", ephemeral_base_dir_name()));
     std::fs::create_dir_all(&base)
       .map_err(|e| format!("Failed to create ephemeral base in /dev/shm: {e}"))?;
     Ok(base)
@@ -38,7 +50,7 @@ fn get_ephemeral_base_dir() -> Result<PathBuf, String> {
     }
 
     // Fallback
-    let base = std::env::temp_dir().join("donut-ephemeral");
+    let base = std::env::temp_dir().join(ephemeral_base_dir_name());
     std::fs::create_dir_all(&base)
       .map_err(|e| format!("Failed to create ephemeral base dir: {e}"))?;
     Ok(base)
@@ -47,7 +59,7 @@ fn get_ephemeral_base_dir() -> Result<PathBuf, String> {
 
 #[cfg(target_os = "macos")]
 fn get_or_create_macos_ramdisk() -> Result<PathBuf, String> {
-  let mount_point = PathBuf::from("/Volumes/DonutEphemeral");
+  let mount_point = PathBuf::from(format!("/Volumes/{}", ephemeral_volume_name()));
 
   // Reuse existing RAM disk from a previous session
   if mount_point.exists() && mount_point.is_dir() {
@@ -71,7 +83,7 @@ fn get_or_create_macos_ramdisk() -> Result<PathBuf, String> {
   let dev = String::from_utf8_lossy(&output.stdout).trim().to_string();
 
   let fmt = std::process::Command::new("diskutil")
-    .args(["erasevolume", "HFS+", "DonutEphemeral", &dev])
+    .args(["erasevolume", "HFS+", ephemeral_volume_name(), &dev])
     .output()
     .map_err(|e| format!("diskutil erasevolume failed: {e}"))?;
 
@@ -93,7 +105,7 @@ fn get_or_create_macos_ramdisk() -> Result<PathBuf, String> {
 fn get_or_create_windows_ramdisk() -> Result<PathBuf, String> {
   // Check if a previous RAM disk with our directory already exists
   for letter in ['R', 'Q', 'P', 'O'] {
-    let base = PathBuf::from(format!("{}:\\DonutEphemeral", letter));
+    let base = PathBuf::from(format!("{}:\\{}", letter, ephemeral_volume_name()));
     if base.exists() && base.is_dir() {
       return Ok(base);
     }
@@ -112,7 +124,7 @@ fn get_or_create_windows_ramdisk() -> Result<PathBuf, String> {
 
     match output {
       Ok(out) if out.status.success() => {
-        let base = PathBuf::from(format!("{}\\DonutEphemeral", drive));
+        let base = PathBuf::from(format!("{}\\{}", drive, ephemeral_volume_name()));
         std::fs::create_dir_all(&base)
           .map_err(|e| format!("Failed to create dir on RAM disk: {e}"))?;
         log::info!("Created Windows RAM disk at {}", base.display());
@@ -225,7 +237,9 @@ fn cleanup_legacy_dirs() {
 
   for entry in entries.flatten() {
     if let Some(name) = entry.file_name().to_str() {
-      if name.starts_with("donut-ephemeral-") && entry.path().is_dir() {
+      if (name.starts_with(ephemeral_base_dir_name()) || name.starts_with("donut-ephemeral-"))
+        && entry.path().is_dir()
+      {
         if let Err(e) = std::fs::remove_dir_all(entry.path()) {
           log::warn!("Failed to clean up legacy ephemeral dir: {e}");
         } else {

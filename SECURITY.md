@@ -2,13 +2,17 @@
 
 ## Reporting Security Issues
 
-Thanks for helping make Donut Browser safe for everyone! ❤️
+Thanks for helping make TwitterBrowser safe for everyone! ❤️
 
-We take the security of Donut Browser seriously. If you believe you have found a security vulnerability in Donut Browser, please report it to us through coordinated disclosure.
+We take the security of TwitterBrowser seriously. If you believe you have found a security vulnerability in TwitterBrowser, please report it to us through coordinated disclosure.
 
 **Please do not report security vulnerabilities through public GitHub issues, discussions, or pull requests.**
 
-Instead, please send an email to **[contact@donutbrowser.com](mailto:contact@donutbrowser.com)** with the subject line "Security Vulnerability Report".
+Instead, please use the private security reporting workflow for this fork if it is enabled on GitHub:
+
+- [Repository Security](https://github.com/solsebb/donutbrowser/security)
+
+If private reporting is not available yet, contact the fork maintainer directly and avoid posting vulnerability details publicly.
 
 Please include as much of the information listed below as you can to help us better understand and resolve the issue:
 
@@ -32,9 +36,9 @@ This information will help us triage your report more quickly.
 
 ## Contact
 
-For urgent security matters, please contact us at **[contact@donutbrowser.com](mailto:contact@donutbrowser.com)**.
+For urgent security matters, use the private security reporting workflow for this repository or contact the fork maintainer directly.
 
 For general questions about this security policy, you can also reach out through:
 
-- [GitHub Issues](https://github.com/zhom/donutbrowser/issues) (for non-security questions only)
-- [GitHub Discussions](https://github.com/zhom/donutbrowser/discussions)
+- [GitHub Issues](https://github.com/solsebb/donutbrowser/issues) (for non-security questions only)
+- [GitHub Discussions](https://github.com/solsebb/donutbrowser/discussions)

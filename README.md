@@ -1,31 +1,25 @@
 <div align="center">
-  <img src="assets/logo.png" alt="Donut Browser Logo" width="150">
-  <h1>Donut Browser</h1>
-  <strong>A powerful anti-detect browser that puts you in control of your browsing experience. 🍩</strong>
+  <img src="assets/logo.png" alt="TwitterBrowser Logo" width="150">
+  <h1>TwitterBrowser</h1>
+  <strong>A powerful anti-detect browser fork that puts you in control of your browsing experience.</strong>
 </div>
 <br>
 
 <p align="center">
-  <a style="text-decoration: none;" href="https://github.com/zhom/donutbrowser/releases/latest" target="_blank"><img alt="GitHub release" src="https://img.shields.io/github/v/release/zhom/donutbrowser">
+  <a style="text-decoration: none;" href="https://github.com/solsebb/donutbrowser/releases/latest" target="_blank"><img alt="GitHub release" src="https://img.shields.io/github/v/release/solsebb/donutbrowser">
   </a>
-  <a style="text-decoration: none;" href="https://github.com/zhom/donutbrowser/issues" target="_blank">
+  <a style="text-decoration: none;" href="https://github.com/solsebb/donutbrowser/issues" target="_blank">
     <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat" alt="PRs Welcome">
   </a>
-  <a style="text-decoration: none;" href="https://github.com/zhom/donutbrowser/blob/main/LICENSE" target="_blank">
+  <a style="text-decoration: none;" href="https://github.com/solsebb/donutbrowser/blob/main/LICENSE" target="_blank">
     <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License">
   </a>
-  <a href="https://app.codacy.com/gh/zhom/donutbrowser/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade">
-    <img src="https://app.codacy.com/project/badge/Grade/b9c9beafc92d4bc8bc7c5b42c6c4ba81"/>
-  </a>
-  <a href="https://app.fossa.com/projects/git%2Bgithub.com%2Fzhom%2Fdonutbrowser?ref=badge_shield&issueType=security" alt="FOSSA Status">
-    <img src="https://app.fossa.com/api/projects/git%2Bgithub.com%2Fzhom%2Fdonutbrowser.svg?type=shield&issueType=security"/>
-  </a>
-  <a style="text-decoration: none;" href="https://github.com/zhom/donutbrowser/stargazers" target="_blank">
-    <img src="https://img.shields.io/github/stars/zhom/donutbrowser?style=social" alt="GitHub stars">
+  <a style="text-decoration: none;" href="https://github.com/solsebb/donutbrowser/stargazers" target="_blank">
+    <img src="https://img.shields.io/github/stars/solsebb/donutbrowser?style=social" alt="GitHub stars">
   </a>
 </p>
 
-<img alt="Donut Browser Preview" src="assets/donut-preview.png" />
+<img alt="TwitterBrowser Preview" src="assets/donut-preview.png" />
 
 ## Features
 
@@ -34,13 +28,13 @@
 - Proxy support with basic auth for all browsers
 - Import profiles from your existing browsers
 - Automatic updates for browsers
-- Set Donut Browser as your default browser to control in which profile to open links
+- Set TwitterBrowser as your default browser to control in which profile to open links
 
 ## Download
 
 > For Linux, .deb and .rpm packages are available as well as standalone .AppImage files.
 
-The app can be downloaded from the [releases page](https://github.com/zhom/donutbrowser/releases/latest).
+The app can be downloaded from the [releases page](https://github.com/solsebb/donutbrowser/releases/latest).
 
 <details>
 <summary>Troubleshooting AppImage on Linux</summary>
@@ -48,7 +42,7 @@ The app can be downloaded from the [releases page](https://github.com/zhom/donut
 If the AppImage segfaults on launch, install **libfuse2** (`sudo apt install libfuse2` / `yay -S libfuse2` / `sudo dnf install fuse-libs`), or bypass FUSE entirely:
 
 ```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./Donut.Browser_x.x.x_amd64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./TwitterBrowser_x.x.x_amd64.AppImage
 ```
 
 If that gives an EGL display error, try adding `WEBKIT_DISABLE_DMABUF_RENDERER=1` or `GDK_BACKEND=x11` to the command above. If issues persist, the **.deb** / **.rpm** packages are a more reliable alternative.
@@ -69,26 +63,26 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Issues
 
-If you face any problems while using the application, please [open an issue](https://github.com/zhom/donutbrowser/issues).
+If you face any problems while using the application, please [open an issue](https://github.com/solsebb/donutbrowser/issues).
 
 ## Self-Hosting Sync
 
-Donut Browser supports syncing profiles, proxies, and groups across devices via a self-hosted sync server. See the [Self-Hosting Guide](docs/self-hosting-donut-sync.md) for Docker-based setup instructions.
+TwitterBrowser supports syncing profiles, proxies, and groups across devices via a self-hosted sync server. See the [Self-Hosting Guide](docs/self-hosting-donut-sync.md) for Docker-based setup instructions.
 
 ## Community
 
 Have questions or want to contribute? The team would love to hear from you!
 
-- **Issues**: [GitHub Issues](https://github.com/zhom/donutbrowser/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/zhom/donutbrowser/discussions)
+- **Issues**: [GitHub Issues](https://github.com/solsebb/donutbrowser/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/solsebb/donutbrowser/discussions)
 
 ## Star History
 
-<a href="https://www.star-history.com/#zhom/donutbrowser&Date">
+<a href="https://www.star-history.com/#solsebb/donutbrowser&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=zhom/donutbrowser&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=zhom/donutbrowser&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=zhom/donutbrowser&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=solsebb/donutbrowser&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=solsebb/donutbrowser&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=solsebb/donutbrowser&type=Date" />
  </picture>
 </a>
 
@@ -126,7 +120,7 @@ Have questions or want to contribute? The team would love to hear from you!
 
 ## Contact
 
-Have an urgent question or want to report a security vulnerability? Send an email to [contact@donutbrowser.com](mailto:contact@donutbrowser.com) and the team will get back to you as fast as possible.
+Have an urgent question or want to report a security issue? Use [GitHub Discussions](https://github.com/solsebb/donutbrowser/discussions) for general questions and follow the process in [SECURITY.md](SECURITY.md) for coordinated disclosure.
 
 ## License
 

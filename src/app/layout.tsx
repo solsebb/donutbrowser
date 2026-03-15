@@ -4,6 +4,7 @@ import "@/styles/globals.css";
 import "flag-icons/css/flag-icons.min.css";
 import { useEffect } from "react";
 import { I18nProvider } from "@/components/i18n-provider";
+import { RuntimeAppConfigProvider } from "@/components/runtime-app-config-provider";
 import { CustomThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -35,11 +36,13 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased overflow-hidden bg-background`}
       >
         <I18nProvider>
-          <CustomThemeProvider>
-            <WindowDragArea />
-            <TooltipProvider>{children}</TooltipProvider>
-            <Toaster />
-          </CustomThemeProvider>
+          <RuntimeAppConfigProvider>
+            <CustomThemeProvider>
+              <WindowDragArea />
+              <TooltipProvider>{children}</TooltipProvider>
+              <Toaster />
+            </CustomThemeProvider>
+          </RuntimeAppConfigProvider>
         </I18nProvider>
       </body>
     </html>

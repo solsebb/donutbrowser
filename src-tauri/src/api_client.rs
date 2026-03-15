@@ -347,7 +347,7 @@ pub struct BrowserRelease {
   pub is_prerelease: bool,
 }
 
-/// Wayfern version info from https://donutbrowser.com/wayfern.json
+/// Wayfern version info from the configured metadata endpoint.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WayfernVersionInfo {
   pub version: String,
@@ -1122,7 +1122,7 @@ impl ApiClient {
     Ok(())
   }
 
-  /// Fetch Wayfern version info from https://donutbrowser.com/wayfern.json
+  /// Fetch Wayfern version info from the configured metadata endpoint.
   pub async fn fetch_wayfern_version_with_caching(
     &self,
     no_caching: bool,
@@ -1135,8 +1135,13 @@ impl ApiClient {
       }
     }
 
-    log::info!("Fetching Wayfern version from https://donutbrowser.com/wayfern.json");
-    let url = "https://donutbrowser.com/wayfern.json";
+    let url = crate::runtime_app_config::current()
+      .wayfern_metadata_url
+      .clone()
+      .ok_or_else(|| {
+        "Wayfern metadata endpoint is not configured for this TwitterBrowser build".to_string()
+      })?;
+    log::info!("Fetching Wayfern version from {url}");
 
     let mut last_err = None;
     let mut version_info: Option<WayfernVersionInfo> = None;
@@ -1144,7 +1149,7 @@ impl ApiClient {
     for attempt in 1..=3 {
       match self
         .client
-        .get(url)
+        .get(&url)
         .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36")
         .send()
         .await

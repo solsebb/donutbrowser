@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LuEye, LuEyeOff } from "react-icons/lu";
 import { LoadingButton } from "@/components/loading-button";
+import { useRuntimeAppConfig } from "@/components/runtime-app-config-provider";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -42,6 +43,8 @@ interface ProxyUsage {
 
 export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
   const { t } = useTranslation();
+  const runtimeConfig = useRuntimeAppConfig();
+  const hostedCloudEnabled = runtimeConfig.hosted_cloud_enabled;
 
   // Self-hosted state
   const [serverUrl, setServerUrl] = useState("");
@@ -66,7 +69,7 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<string>("cloud");
+  const [activeTab, setActiveTab] = useState<string>("self-hosted");
   const [liveProxyUsage, setLiveProxyUsage] = useState<ProxyUsage | null>(null);
 
   const [connectionStatus, setConnectionStatus] = useState<
@@ -116,15 +119,18 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
 
   // Auto-select the appropriate tab based on connection state
   useEffect(() => {
-    if (isCloudLoading) return;
-    if (isLoggedIn) {
+    if (!hostedCloudEnabled) {
+      setActiveTab("self-hosted");
+    } else if (isCloudLoading) {
+      return;
+    } else if (isLoggedIn) {
       setActiveTab("cloud");
     } else if (serverUrl && token) {
       setActiveTab("self-hosted");
     } else {
       setActiveTab("cloud");
     }
-  }, [isCloudLoading, isLoggedIn, serverUrl, token]);
+  }, [hostedCloudEnabled, isCloudLoading, isLoggedIn, serverUrl, token]);
 
   const handleTestConnection = useCallback(async () => {
     if (!serverUrl) {
@@ -254,8 +260,109 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
   }, [logout, t]);
 
   // Determine which tabs are available
-  const cloudBlocked = !isLoggedIn && hasConfig;
+  const cloudBlocked = !hostedCloudEnabled || (!isLoggedIn && hasConfig);
   const selfHostedBlocked = isLoggedIn;
+  const showCloudAccount = hostedCloudEnabled && isLoggedIn && user;
+
+  const selfHostedContent = (
+    <>
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <div className="w-6 h-6 rounded-full border-2 border-current animate-spin border-t-transparent" />
+        </div>
+      ) : (
+        <div className="grid gap-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="sync-server-url">{t("sync.serverUrl")}</Label>
+            <Input
+              id="sync-server-url"
+              placeholder={t("sync.serverUrlPlaceholder")}
+              value={serverUrl}
+              onChange={(e) => setServerUrl(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="sync-token">{t("sync.token")}</Label>
+            <div className="relative">
+              <Input
+                id="sync-token"
+                type={showToken ? "text" : "password"}
+                placeholder={t("sync.tokenPlaceholder")}
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                className="pr-10"
+              />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => setShowToken(!showToken)}
+                    className="absolute right-3 top-1/2 p-1 rounded-sm transition-colors transform -translate-y-1/2 hover:bg-accent"
+                    aria-label={showToken ? "Hide token" : "Show token"}
+                  >
+                    {showToken ? (
+                      <LuEyeOff className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                    ) : (
+                      <LuEye className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {showToken ? "Hide token" : "Show token"}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+
+          {connectionStatus === "testing" && (
+            <div className="flex gap-2 items-center text-sm text-muted-foreground">
+              <div className="w-4 h-4 rounded-full border-2 border-current animate-spin border-t-transparent" />
+              {t("sync.status.syncing")}
+            </div>
+          )}
+          {connectionStatus === "connected" && (
+            <div className="flex gap-2 items-center text-sm text-muted-foreground">
+              <div className="w-2 h-2 rounded-full bg-success" />
+              {t("sync.status.connected")}
+            </div>
+          )}
+          {connectionStatus === "error" && (
+            <div className="flex gap-2 items-center text-sm text-muted-foreground">
+              <div className="w-2 h-2 rounded-full bg-destructive" />
+              {t("sync.status.disconnected")}
+            </div>
+          )}
+        </div>
+      )}
+
+      <DialogFooter className="flex gap-2">
+        {hasConfig && (
+          <Button
+            variant="outline"
+            onClick={handleDisconnect}
+            disabled={isSaving}
+          >
+            Disconnect
+          </Button>
+        )}
+        <Button
+          variant="outline"
+          onClick={handleTestConnection}
+          disabled={isTesting || !serverUrl}
+        >
+          {isTesting ? "Testing..." : "Test Connection"}
+        </Button>
+        <LoadingButton
+          onClick={handleSave}
+          isLoading={isSaving}
+          disabled={!serverUrl || !token}
+        >
+          Save
+        </LoadingButton>
+      </DialogFooter>
+    </>
+  );
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -265,8 +372,7 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
           <DialogDescription>{t("sync.description")}</DialogDescription>
         </DialogHeader>
 
-        {/* If cloud is logged in, don't show tabs at all - just show cloud account */}
-        {isLoggedIn && user ? (
+        {showCloudAccount ? (
           <div className="grid gap-4 py-4">
             <div className="flex gap-2 items-center text-sm">
               <div className="w-2 h-2 rounded-full bg-success" />
@@ -362,15 +468,17 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
             </div>
 
             <div className="flex gap-2 pt-2">
-              <Button variant="outline" className="flex-1" asChild>
-                <a
-                  href="https://donutbrowser.com/account"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {t("sync.cloud.manageAccount")}
-                </a>
-              </Button>
+              {runtimeConfig.account_url && (
+                <Button variant="outline" className="flex-1" asChild>
+                  <a
+                    href={runtimeConfig.account_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {t("sync.cloud.manageAccount")}
+                  </a>
+                </Button>
+              )}
               <Button
                 variant="outline"
                 className="flex-1"
@@ -380,7 +488,7 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
               </Button>
             </div>
           </div>
-        ) : (
+        ) : hostedCloudEnabled ? (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="w-full">
               <TabsTrigger
@@ -469,107 +577,10 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
                 </div>
               )}
             </TabsContent>
-
-            <TabsContent value="self-hosted">
-              {isLoading ? (
-                <div className="flex justify-center py-8">
-                  <div className="w-6 h-6 rounded-full border-2 border-current animate-spin border-t-transparent" />
-                </div>
-              ) : (
-                <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="sync-server-url">
-                      {t("sync.serverUrl")}
-                    </Label>
-                    <Input
-                      id="sync-server-url"
-                      placeholder={t("sync.serverUrlPlaceholder")}
-                      value={serverUrl}
-                      onChange={(e) => setServerUrl(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="sync-token">{t("sync.token")}</Label>
-                    <div className="relative">
-                      <Input
-                        id="sync-token"
-                        type={showToken ? "text" : "password"}
-                        placeholder={t("sync.tokenPlaceholder")}
-                        value={token}
-                        onChange={(e) => setToken(e.target.value)}
-                        className="pr-10"
-                      />
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            onClick={() => setShowToken(!showToken)}
-                            className="absolute right-3 top-1/2 p-1 rounded-sm transition-colors transform -translate-y-1/2 hover:bg-accent"
-                            aria-label={showToken ? "Hide token" : "Show token"}
-                          >
-                            {showToken ? (
-                              <LuEyeOff className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-                            ) : (
-                              <LuEye className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-                            )}
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {showToken ? "Hide token" : "Show token"}
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </div>
-
-                  {connectionStatus === "testing" && (
-                    <div className="flex gap-2 items-center text-sm text-muted-foreground">
-                      <div className="w-4 h-4 rounded-full border-2 border-current animate-spin border-t-transparent" />
-                      {t("sync.status.syncing")}
-                    </div>
-                  )}
-                  {connectionStatus === "connected" && (
-                    <div className="flex gap-2 items-center text-sm text-muted-foreground">
-                      <div className="w-2 h-2 rounded-full bg-success" />
-                      {t("sync.status.connected")}
-                    </div>
-                  )}
-                  {connectionStatus === "error" && (
-                    <div className="flex gap-2 items-center text-sm text-muted-foreground">
-                      <div className="w-2 h-2 rounded-full bg-destructive" />
-                      {t("sync.status.disconnected")}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <DialogFooter className="flex gap-2">
-                {hasConfig && (
-                  <Button
-                    variant="outline"
-                    onClick={handleDisconnect}
-                    disabled={isSaving}
-                  >
-                    Disconnect
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  onClick={handleTestConnection}
-                  disabled={isTesting || !serverUrl}
-                >
-                  {isTesting ? "Testing..." : "Test Connection"}
-                </Button>
-                <LoadingButton
-                  onClick={handleSave}
-                  isLoading={isSaving}
-                  disabled={!serverUrl || !token}
-                >
-                  Save
-                </LoadingButton>
-              </DialogFooter>
-            </TabsContent>
+            <TabsContent value="self-hosted">{selfHostedContent}</TabsContent>
           </Tabs>
+        ) : (
+          selfHostedContent
         )}
       </DialogContent>
     </Dialog>
