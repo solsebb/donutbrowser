@@ -697,7 +697,7 @@ impl CloudAuthManager {
     match fingerprint_os {
       None => true,
       Some(os) if os == host_os => true,
-      Some(_) => self.has_active_paid_subscription().await,
+      Some(_) => crate::runtime_app_config::current().cross_os_profiles_enabled(),
     }
   }
 

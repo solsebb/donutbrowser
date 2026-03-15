@@ -189,7 +189,6 @@ type TableMeta = {
   syncStatuses: Record<string, { status: string; error?: string }>;
   onOpenProfileSyncDialog?: (profile: BrowserProfile) => void;
   onToggleProfileSync?: (profile: BrowserProfile) => void;
-  crossOsUnlocked?: boolean;
   syncUnlocked?: boolean;
 
   // Country proxy creation (inline in proxy dropdown)
@@ -799,7 +798,8 @@ interface ProfilesDataTableProps {
   onAssignExtensionGroup?: (profileIds: string[]) => void;
   onOpenProfileSyncDialog?: (profile: BrowserProfile) => void;
   onToggleProfileSync?: (profile: BrowserProfile) => void;
-  crossOsUnlocked?: boolean;
+  cookieToolsEnabled?: boolean;
+  extensionToolsEnabled?: boolean;
   syncUnlocked?: boolean;
 }
 
@@ -826,7 +826,8 @@ export function ProfilesDataTable({
   onAssignExtensionGroup,
   onOpenProfileSyncDialog,
   onToggleProfileSync,
-  crossOsUnlocked = false,
+  cookieToolsEnabled = false,
+  extensionToolsEnabled = false,
   syncUnlocked = false,
 }: ProfilesDataTableProps) {
   const { t } = useTranslation();
@@ -952,7 +953,7 @@ export function ProfilesDataTable({
   const [countries, setCountries] = React.useState<LocationItem[]>([]);
   const [countriesLoaded, setCountriesLoaded] = React.useState(false);
   const hasCloudProxy = storedProxies.some((p) => p.is_cloud_managed);
-  const canCreateLocationProxy = hasCloudProxy || crossOsUnlocked;
+  const canCreateLocationProxy = hasCloudProxy;
 
   const loadCountries = React.useCallback(async () => {
     if (countriesLoaded || !canCreateLocationProxy) return;
@@ -1515,7 +1516,6 @@ export function ProfilesDataTable({
       syncStatuses,
       onOpenProfileSyncDialog,
       onToggleProfileSync,
-      crossOsUnlocked,
       syncUnlocked,
 
       // Country proxy creation
@@ -1574,7 +1574,6 @@ export function ProfilesDataTable({
       syncStatuses,
       onOpenProfileSyncDialog,
       onToggleProfileSync,
-      crossOsUnlocked,
       syncUnlocked,
       countries,
       canCreateLocationProxy,
@@ -2523,7 +2522,8 @@ export function ProfilesDataTable({
                 setProfileForInfoDialog(null);
                 setProfileToDelete(profile);
               }}
-              crossOsUnlocked={crossOsUnlocked}
+              cookieToolsEnabled={cookieToolsEnabled}
+              extensionToolsEnabled={extensionToolsEnabled}
               isRunning={infoIsRunning}
               isDisabled={infoIsDisabled}
               isCrossOs={infoIsCrossOs}
@@ -2553,40 +2553,22 @@ export function ProfilesDataTable({
         )}
         {onBulkExtensionGroupAssignment && (
           <DataTableActionBarAction
-            tooltip={
-              crossOsUnlocked
-                ? "Assign Extension Group"
-                : "Assign Extension Group (Pro)"
-            }
+            tooltip="Assign Extension Group"
             onClick={onBulkExtensionGroupAssignment}
             size="icon"
-            disabled={!crossOsUnlocked}
+            disabled={!extensionToolsEnabled}
           >
-            <span className="relative">
-              <LuPuzzle />
-              {!crossOsUnlocked && (
-                <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 text-[6px] font-bold leading-none bg-primary text-primary-foreground px-0.5 rounded-sm">
-                  PRO
-                </span>
-              )}
-            </span>
+            <LuPuzzle />
           </DataTableActionBarAction>
         )}
         {onBulkCopyCookies && (
           <DataTableActionBarAction
-            tooltip={crossOsUnlocked ? "Copy Cookies" : "Copy Cookies (Pro)"}
+            tooltip="Copy Cookies"
             onClick={onBulkCopyCookies}
             size="icon"
-            disabled={!crossOsUnlocked}
+            disabled={!cookieToolsEnabled}
           >
-            <span className="relative">
-              <LuCookie />
-              {!crossOsUnlocked && (
-                <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 text-[6px] font-bold leading-none bg-primary text-primary-foreground px-0.5 rounded-sm">
-                  PRO
-                </span>
-              )}
-            </span>
+            <LuCookie />
           </DataTableActionBarAction>
         )}
         {onBulkDelete && (

@@ -44,12 +44,46 @@ pub struct FrontendRuntimeAppConfig {
   pub homepage_url: Option<String>,
   pub support_url: Option<String>,
   pub account_url: Option<String>,
+  pub cross_os_profiles_enabled: bool,
+  pub cookie_tools_enabled: bool,
+  pub extension_tools_enabled: bool,
+  pub self_hosted_sync_enabled: bool,
   pub hosted_cloud_enabled: bool,
+  pub hosted_cloud_ui_mode: String,
+  pub commercial_license_ui_enabled: bool,
   pub updater_enabled: bool,
   pub release_page_base_url: Option<String>,
 }
 
 impl RuntimeAppConfig {
+  pub fn cross_os_profiles_enabled(&self) -> bool {
+    true
+  }
+
+  pub fn cookie_tools_enabled(&self) -> bool {
+    true
+  }
+
+  pub fn extension_tools_enabled(&self) -> bool {
+    true
+  }
+
+  pub fn self_hosted_sync_enabled(&self) -> bool {
+    true
+  }
+
+  pub fn hosted_cloud_ui_mode(&self) -> &'static str {
+    if self.hosted_cloud_enabled() {
+      "enabled"
+    } else {
+      "disabled"
+    }
+  }
+
+  pub fn commercial_license_ui_enabled(&self) -> bool {
+    false
+  }
+
   pub fn hosted_cloud_enabled(&self) -> bool {
     self.cloud_api_url.is_some() && self.cloud_sync_url.is_some()
   }
@@ -86,7 +120,13 @@ impl RuntimeAppConfig {
       homepage_url: self.homepage_url.clone(),
       support_url: self.support_url.clone(),
       account_url: self.account_url.clone(),
+      cross_os_profiles_enabled: self.cross_os_profiles_enabled(),
+      cookie_tools_enabled: self.cookie_tools_enabled(),
+      extension_tools_enabled: self.extension_tools_enabled(),
+      self_hosted_sync_enabled: self.self_hosted_sync_enabled(),
       hosted_cloud_enabled: self.hosted_cloud_enabled(),
+      hosted_cloud_ui_mode: self.hosted_cloud_ui_mode().to_string(),
+      commercial_license_ui_enabled: self.commercial_license_ui_enabled(),
       updater_enabled: self.updater_enabled(),
       release_page_base_url: self.releases_page_url.clone(),
     }
@@ -210,6 +250,12 @@ mod tests {
     let config = resolve_with_map(&[]);
     assert_eq!(config.display_name, DISPLAY_NAME);
     assert_eq!(config.gui_binary_name, GUI_BINARY_NAME);
+    assert!(config.cross_os_profiles_enabled());
+    assert!(config.cookie_tools_enabled());
+    assert!(config.extension_tools_enabled());
+    assert!(config.self_hosted_sync_enabled());
+    assert_eq!(config.hosted_cloud_ui_mode(), "disabled");
+    assert!(!config.commercial_license_ui_enabled());
     assert!(!config.hosted_cloud_enabled());
     assert!(!config.updater_enabled());
     assert_eq!(config.wayfern_metadata_url, None);
@@ -236,6 +282,7 @@ mod tests {
 
     assert!(config.hosted_cloud_enabled());
     assert!(config.updater_enabled());
+    assert_eq!(config.hosted_cloud_ui_mode(), "enabled");
     assert_eq!(
       config.wayfern_metadata_url,
       Some("https://metadata.example.com/wayfern.json".to_string())
@@ -244,6 +291,7 @@ mod tests {
       config.frontend_config().release_page_base_url,
       Some("https://github.com/example/twitterbrowser/releases".to_string())
     );
+    assert!(config.frontend_config().cross_os_profiles_enabled);
   }
 
   #[test]

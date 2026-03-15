@@ -31,7 +31,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ProBadge } from "@/components/ui/pro-badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -65,7 +64,8 @@ interface ProfileInfoDialogProps {
   onOpenBypassRules?: (profile: BrowserProfile) => void;
   onCloneProfile?: (profile: BrowserProfile) => void;
   onDeleteProfile?: (profile: BrowserProfile) => void;
-  crossOsUnlocked?: boolean;
+  cookieToolsEnabled?: boolean;
+  extensionToolsEnabled?: boolean;
   isRunning?: boolean;
   isDisabled?: boolean;
   isCrossOs?: boolean;
@@ -110,7 +110,8 @@ export function ProfileInfoDialog({
   onOpenBypassRules,
   onCloneProfile,
   onDeleteProfile,
-  crossOsUnlocked = false,
+  cookieToolsEnabled = false,
+  extensionToolsEnabled = false,
   isRunning = false,
   isDisabled = false,
   isCrossOs = false,
@@ -216,7 +217,6 @@ export function ProfileInfoDialog({
     onClick: () => void;
     disabled?: boolean;
     destructive?: boolean;
-    proBadge?: boolean;
     runningBadge?: boolean;
     hidden?: boolean;
   };
@@ -255,9 +255,8 @@ export function ProfileInfoDialog({
       icon: <LuCopy className="w-4 h-4" />,
       label: t("profiles.actions.copyCookiesToProfile"),
       onClick: () => handleAction(() => onCopyCookiesToProfile?.(profile)),
-      disabled: isDisabled || !crossOsUnlocked,
-      proBadge: !crossOsUnlocked,
-      runningBadge: isRunning && crossOsUnlocked,
+      disabled: isDisabled || !cookieToolsEnabled,
+      runningBadge: isRunning && cookieToolsEnabled,
       hidden:
         !isCamoufoxOrWayfern ||
         profile.ephemeral === true ||
@@ -267,9 +266,8 @@ export function ProfileInfoDialog({
       icon: <LuCookie className="w-4 h-4" />,
       label: t("profileInfo.actions.manageCookies"),
       onClick: () => handleAction(() => onOpenCookieManagement?.(profile)),
-      disabled: isDisabled || !crossOsUnlocked,
-      proBadge: !crossOsUnlocked,
-      runningBadge: isRunning && crossOsUnlocked,
+      disabled: isDisabled || !cookieToolsEnabled,
+      runningBadge: isRunning && cookieToolsEnabled,
       hidden:
         !isCamoufoxOrWayfern ||
         profile.ephemeral === true ||
@@ -287,9 +285,8 @@ export function ProfileInfoDialog({
       icon: <LuPuzzle className="w-4 h-4" />,
       label: t("profileInfo.actions.assignExtensionGroup"),
       onClick: () => handleAction(() => onAssignExtensionGroup?.([profile.id])),
-      disabled: isDisabled || !crossOsUnlocked,
-      proBadge: !crossOsUnlocked,
-      runningBadge: isRunning && crossOsUnlocked,
+      disabled: isDisabled || !extensionToolsEnabled,
+      runningBadge: isRunning && extensionToolsEnabled,
       hidden: profile.ephemeral === true,
     },
     {
@@ -500,7 +497,6 @@ export function ProfileInfoDialog({
                           {t("common.status.running")}
                         </span>
                       )}
-                      {action.proBadge && !action.runningBadge && <ProBadge />}
                     </span>
                     <LuChevronRight className="w-4 h-4 text-muted-foreground" />
                   </button>

@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ProBadge } from "@/components/ui/pro-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
@@ -44,7 +43,8 @@ interface ProxyUsage {
 export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
   const { t } = useTranslation();
   const runtimeConfig = useRuntimeAppConfig();
-  const hostedCloudEnabled = runtimeConfig.hosted_cloud_enabled;
+  const hostedCloudEnabled = runtimeConfig.hosted_cloud_ui_mode === "enabled";
+  const selfHostedSyncEnabled = runtimeConfig.self_hosted_sync_enabled;
 
   // Self-hosted state
   const [serverUrl, setServerUrl] = useState("");
@@ -119,7 +119,9 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
 
   // Auto-select the appropriate tab based on connection state
   useEffect(() => {
-    if (!hostedCloudEnabled) {
+    if (!selfHostedSyncEnabled) {
+      setActiveTab("cloud");
+    } else if (!hostedCloudEnabled) {
       setActiveTab("self-hosted");
     } else if (isCloudLoading) {
       return;
@@ -130,7 +132,14 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
     } else {
       setActiveTab("cloud");
     }
-  }, [hostedCloudEnabled, isCloudLoading, isLoggedIn, serverUrl, token]);
+  }, [
+    hostedCloudEnabled,
+    isCloudLoading,
+    isLoggedIn,
+    selfHostedSyncEnabled,
+    serverUrl,
+    token,
+  ]);
 
   const handleTestConnection = useCallback(async () => {
     if (!serverUrl) {
@@ -259,9 +268,8 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
     }
   }, [logout, t]);
 
-  // Determine which tabs are available
-  const cloudBlocked = !hostedCloudEnabled || (!isLoggedIn && hasConfig);
-  const selfHostedBlocked = isLoggedIn;
+  const hostedCloudVisible = runtimeConfig.hosted_cloud_ui_mode !== "hidden";
+  const hostedCloudDisabled = runtimeConfig.hosted_cloud_ui_mode === "disabled";
   const showCloudAccount = hostedCloudEnabled && isLoggedIn && user;
 
   const selfHostedContent = (
@@ -488,33 +496,34 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
               </Button>
             </div>
           </div>
-        ) : hostedCloudEnabled ? (
+        ) : hostedCloudVisible ? (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="w-full">
-              <TabsTrigger
-                value="cloud"
-                className="flex-1"
-                disabled={cloudBlocked}
-              >
+              <TabsTrigger value="cloud" className="flex-1">
                 <span className="flex items-center gap-2">
                   {t("sync.cloud.tabLabel")}
-                  {cloudBlocked && <ProBadge />}
                 </span>
               </TabsTrigger>
               <TabsTrigger
                 value="self-hosted"
                 className="flex-1"
-                disabled={selfHostedBlocked}
+                disabled={!selfHostedSyncEnabled}
               >
                 <span className="flex items-center gap-2">
                   {t("sync.cloud.selfHostedTabLabel")}
-                  {selfHostedBlocked && <ProBadge />}
                 </span>
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="cloud">
-              {isCloudLoading ? (
+              {hostedCloudDisabled ? (
+                <div className="grid gap-3 py-4">
+                  <div className="rounded-md border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                    Hosted cloud is not available in this build. Use self-hosted
+                    sync instead.
+                  </div>
+                </div>
+              ) : isCloudLoading ? (
                 <div className="flex justify-center py-8">
                   <div className="w-6 h-6 rounded-full border-2 border-current animate-spin border-t-transparent" />
                 </div>
@@ -577,7 +586,17 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
                 </div>
               )}
             </TabsContent>
-            <TabsContent value="self-hosted">{selfHostedContent}</TabsContent>
+            <TabsContent value="self-hosted">
+              {selfHostedSyncEnabled ? (
+                selfHostedContent
+              ) : (
+                <div className="grid gap-3 py-4">
+                  <div className="rounded-md border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                    Self-hosted sync is not available in this build.
+                  </div>
+                </div>
+              )}
+            </TabsContent>
           </Tabs>
         ) : (
           selfHostedContent

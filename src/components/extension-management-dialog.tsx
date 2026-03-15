@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ProBadge } from "@/components/ui/pro-badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
@@ -170,7 +169,6 @@ export function ExtensionManagementDialog({
       setExtensions(exts);
       setExtensionGroups(groups);
     } catch {
-      // User may not have pro subscription
       setExtensions([]);
       setExtensionGroups([]);
     } finally {
@@ -527,7 +525,6 @@ export function ExtensionManagementDialog({
             <DialogTitle className="flex items-center gap-2">
               <LuPuzzle className="w-5 h-5" />
               {t("extensions.title")}
-              {limitedMode && <ProBadge />}
             </DialogTitle>
             <DialogDescription>{t("extensions.description")}</DialogDescription>
           </DialogHeader>
@@ -543,9 +540,8 @@ export function ExtensionManagementDialog({
                   <div className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-background to-transparent z-[2]" />
                   <div className="absolute inset-0 flex items-center justify-center z-[3]">
                     <div className="flex items-center gap-2 rounded-md bg-background/80 px-3 py-1.5">
-                      <ProBadge />
                       <span className="text-sm font-medium text-muted-foreground">
-                        {t("extensions.proRequired")}
+                        Extension management is not available in this build.
                       </span>
                     </div>
                   </div>

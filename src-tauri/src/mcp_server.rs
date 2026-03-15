@@ -792,7 +792,7 @@ impl McpServer {
       McpTool {
         name: "update_profile_fingerprint".to_string(),
         description:
-          "Update the fingerprint configuration for a Wayfern or Camoufox profile. Requires an active Pro subscription."
+          "Update the fingerprint configuration for a Wayfern or Camoufox profile."
             .to_string(),
         input_schema: serde_json::json!({
           "type": "object",
@@ -841,7 +841,7 @@ impl McpServer {
       },
       McpTool {
         name: "list_extensions".to_string(),
-        description: "List all managed browser extensions. Requires Pro subscription.".to_string(),
+        description: "List all managed browser extensions.".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {},
@@ -850,7 +850,7 @@ impl McpServer {
       },
       McpTool {
         name: "list_extension_groups".to_string(),
-        description: "List all extension groups. Requires Pro subscription.".to_string(),
+        description: "List all extension groups.".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {},
@@ -859,7 +859,7 @@ impl McpServer {
       },
       McpTool {
         name: "create_extension_group".to_string(),
-        description: "Create a new extension group. Requires Pro subscription.".to_string(),
+        description: "Create a new extension group.".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {
@@ -870,7 +870,7 @@ impl McpServer {
       },
       McpTool {
         name: "delete_extension".to_string(),
-        description: "Delete a managed extension. Requires Pro subscription.".to_string(),
+        description: "Delete a managed extension.".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {
@@ -881,7 +881,7 @@ impl McpServer {
       },
       McpTool {
         name: "delete_extension_group".to_string(),
-        description: "Delete an extension group. Requires Pro subscription.".to_string(),
+        description: "Delete an extension group.".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {
@@ -892,7 +892,7 @@ impl McpServer {
       },
       McpTool {
         name: "assign_extension_group_to_profile".to_string(),
-        description: "Assign an extension group to a profile, or remove the assignment. Requires Pro subscription.".to_string(),
+        description: "Assign an extension group to a profile, or remove the assignment.".to_string(),
         input_schema: serde_json::json!({
           "type": "object",
           "properties": {
@@ -2610,10 +2610,10 @@ impl McpServer {
     &self,
     arguments: &serde_json::Value,
   ) -> Result<serde_json::Value, McpError> {
-    if !CLOUD_AUTH.has_active_paid_subscription().await {
+    if !crate::runtime_app_config::current().cross_os_profiles_enabled() {
       return Err(McpError {
         code: -32000,
-        message: "Fingerprint editing requires an active Pro subscription".to_string(),
+        message: "Fingerprint editing is not available in this build".to_string(),
       });
     }
 
@@ -2635,10 +2635,7 @@ impl McpServer {
       if !CLOUD_AUTH.is_fingerprint_os_allowed(Some(os_val)).await {
         return Err(McpError {
           code: -32000,
-          message: format!(
-            "OS spoofing to '{}' requires an active Pro subscription",
-            os_val
-          ),
+          message: format!("Cross-OS fingerprints are not available for '{}'", os_val),
         });
       }
     }
@@ -2772,10 +2769,10 @@ impl McpServer {
   }
 
   async fn handle_list_extensions(&self) -> Result<serde_json::Value, McpError> {
-    if !CLOUD_AUTH.has_active_paid_subscription().await {
+    if !crate::runtime_app_config::current().extension_tools_enabled() {
       return Err(McpError {
         code: -32000,
-        message: "Extension management requires an active Pro subscription".to_string(),
+        message: "Extension management is not available in this build".to_string(),
       });
     }
     let mgr = crate::extension_manager::EXTENSION_MANAGER.lock().unwrap();
@@ -2787,10 +2784,10 @@ impl McpServer {
   }
 
   async fn handle_list_extension_groups(&self) -> Result<serde_json::Value, McpError> {
-    if !CLOUD_AUTH.has_active_paid_subscription().await {
+    if !crate::runtime_app_config::current().extension_tools_enabled() {
       return Err(McpError {
         code: -32000,
-        message: "Extension management requires an active Pro subscription".to_string(),
+        message: "Extension management is not available in this build".to_string(),
       });
     }
     let mgr = crate::extension_manager::EXTENSION_MANAGER.lock().unwrap();
@@ -2805,10 +2802,10 @@ impl McpServer {
     &self,
     arguments: &serde_json::Value,
   ) -> Result<serde_json::Value, McpError> {
-    if !CLOUD_AUTH.has_active_paid_subscription().await {
+    if !crate::runtime_app_config::current().extension_tools_enabled() {
       return Err(McpError {
         code: -32000,
-        message: "Extension management requires an active Pro subscription".to_string(),
+        message: "Extension management is not available in this build".to_string(),
       });
     }
     let name = arguments
@@ -2830,10 +2827,10 @@ impl McpServer {
     &self,
     arguments: &serde_json::Value,
   ) -> Result<serde_json::Value, McpError> {
-    if !CLOUD_AUTH.has_active_paid_subscription().await {
+    if !crate::runtime_app_config::current().extension_tools_enabled() {
       return Err(McpError {
         code: -32000,
-        message: "Extension management requires an active Pro subscription".to_string(),
+        message: "Extension management is not available in this build".to_string(),
       });
     }
     let extension_id = arguments
@@ -2857,10 +2854,10 @@ impl McpServer {
     &self,
     arguments: &serde_json::Value,
   ) -> Result<serde_json::Value, McpError> {
-    if !CLOUD_AUTH.has_active_paid_subscription().await {
+    if !crate::runtime_app_config::current().extension_tools_enabled() {
       return Err(McpError {
         code: -32000,
-        message: "Extension management requires an active Pro subscription".to_string(),
+        message: "Extension management is not available in this build".to_string(),
       });
     }
     let group_id = arguments
@@ -2887,10 +2884,10 @@ impl McpServer {
     &self,
     arguments: &serde_json::Value,
   ) -> Result<serde_json::Value, McpError> {
-    if !CLOUD_AUTH.has_active_paid_subscription().await {
+    if !crate::runtime_app_config::current().extension_tools_enabled() {
       return Err(McpError {
         code: -32000,
-        message: "Extension management requires an active Pro subscription".to_string(),
+        message: "Extension management is not available in this build".to_string(),
       });
     }
     let profile_id = arguments
