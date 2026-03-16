@@ -57,6 +57,7 @@ impl TeamLockManager {
     }
   }
 
+  #[allow(dead_code)]
   pub async fn connect(&self, team_id: &str) {
     if !hosted_cloud_enabled() {
       return;
@@ -203,6 +204,7 @@ impl TeamLockManager {
     false
   }
 
+  #[allow(dead_code)]
   async fn fetch_initial_locks(&self, team_id: &str) -> Result<(), String> {
     let cloud_api_url = require_cloud_api_url()?;
     let client = Client::new();
@@ -235,6 +237,7 @@ impl TeamLockManager {
     Ok(())
   }
 
+  #[allow(dead_code)]
   async fn start_heartbeat_loop(&self) {
     if !hosted_cloud_enabled() {
       return;

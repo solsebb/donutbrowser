@@ -18,6 +18,7 @@ import {
   type OnModuleInit,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { interval, merge, type Observable, of, Subject } from "rxjs";
 import { catchError, filter, map, startWith, switchMap } from "rxjs/operators";
 import type { UserContext } from "../auth/user-context.interface.js";
@@ -48,8 +49,7 @@ export class SyncService implements OnModuleInit {
   private bucket: string;
   private changeSubject = new Subject<SubscribeEventDto>();
   private s3Ready = false;
-  private backendInternalUrl: string | undefined;
-  private backendInternalKey: string | undefined;
+  private supabaseAdmin: SupabaseClient | null = null;
 
   constructor(private configService: ConfigService) {
     const endpoint =
@@ -74,12 +74,23 @@ export class SyncService implements OnModuleInit {
       forcePathStyle,
     });
 
-    this.backendInternalUrl = this.configService.get<string>(
-      "BACKEND_INTERNAL_URL",
+    const supabaseUrl = this.configService.get<string>("SUPABASE_URL");
+    const supabaseServiceRoleKey = this.configService.get<string>(
+      "SUPABASE_SERVICE_ROLE_KEY",
     );
-    this.backendInternalKey = this.configService.get<string>(
-      "BACKEND_INTERNAL_KEY",
-    );
+
+    if (supabaseUrl && supabaseServiceRoleKey) {
+      this.supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      });
+    } else {
+      this.logger.warn(
+        "SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing; hosted usage reporting is disabled",
+      );
+    }
   }
 
   async onModuleInit() {
@@ -712,14 +723,14 @@ export class SyncService implements OnModuleInit {
       const teamCount = teamResult.CommonPrefixes?.length || 0;
       if (teamCount >= ctx.teamProfileLimit) {
         throw new ForbiddenException(
-          `Team profile limit reached (${ctx.teamProfileLimit}). Ask the team owner to upgrade.`,
+          `Team profile limit reached (${ctx.teamProfileLimit}). Increase the hosted team limit to continue.`,
         );
       }
     }
 
     if (count >= ctx.profileLimit) {
       throw new ForbiddenException(
-        `Profile limit reached (${ctx.profileLimit}). Upgrade your plan for more profiles.`,
+        `Profile limit reached (${ctx.profileLimit}). Increase the hosted profile limit to continue.`,
       );
     }
   }
@@ -757,56 +768,17 @@ export class SyncService implements OnModuleInit {
     return match ? match[1] : null;
   }
 
-  private async countTeamProfiles(ctx: UserContext): Promise<number> {
-    if (!ctx.teamPrefix) return 0;
-    const profilePrefix = `${ctx.teamPrefix}profiles/`;
-    let count = 0;
-    let continuationToken: string | undefined;
-
-    do {
-      const result = await this.s3Client.send(
-        new ListObjectsV2Command({
-          Bucket: this.bucket,
-          Prefix: profilePrefix,
-          Delimiter: "/",
-          MaxKeys: 1000,
-          ContinuationToken: continuationToken,
-        }),
-      );
-      count += result.CommonPrefixes?.length || 0;
-      continuationToken = result.NextContinuationToken;
-    } while (continuationToken);
-
-    return count;
-  }
-
-  private extractTeamId(ctx: UserContext): string | null {
-    if (!ctx.teamPrefix) return null;
-    const match = ctx.teamPrefix.match(/^teams\/([^/]+)\/$/);
-    return match ? match[1] : null;
-  }
-
   /**
-   * Fire-and-forget: count profiles and report to backend.
+   * Fire-and-forget: count profiles and report to Supabase.
    */
   private reportProfileUsageAsync(ctx: UserContext): void {
-    if (!this.backendInternalUrl || !this.backendInternalKey) return;
+    if (!this.supabaseAdmin) return;
 
     const userId = this.extractUserId(ctx);
     if (!userId) return;
 
     this.countProfiles(ctx)
-      .then(async (count) => {
-        await this.reportProfileUsage(userId, count);
-
-        if (ctx.teamPrefix) {
-          const teamCount = await this.countTeamProfiles(ctx);
-          const teamId = this.extractTeamId(ctx);
-          if (teamId) {
-            await this.reportProfileUsage(teamId, teamCount);
-          }
-        }
-      })
+      .then(async (count) => await this.reportProfileUsage(userId, count))
       .catch((err) =>
         this.logger.warn(`Failed to report profile usage: ${err.message}`),
       );
@@ -816,20 +788,17 @@ export class SyncService implements OnModuleInit {
     userId: string,
     count: number,
   ): Promise<void> {
-    const url = `${this.backendInternalUrl}/api/auth/internal/profile-usage`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-internal-key": this.backendInternalKey ?? "undefined",
-      },
-      body: JSON.stringify({ userId, count }),
-    });
+    if (!this.supabaseAdmin) {
+      return;
+    }
 
-    if (!response.ok) {
-      this.logger.warn(
-        `Profile usage report failed: ${response.status} ${response.statusText}`,
-      );
+    const { error } = await this.supabaseAdmin
+      .from("user_profiles")
+      .update({ cloud_profiles_used: count })
+      .eq("id", userId);
+
+    if (error) {
+      throw new Error(error.message);
     }
   }
 }

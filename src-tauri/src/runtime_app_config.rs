@@ -32,6 +32,9 @@ pub struct RuntimeAppConfig {
   pub support_url: Option<String>,
   pub account_url: Option<String>,
   pub cloud_api_url: Option<String>,
+  pub supabase_url: Option<String>,
+  pub supabase_anon_key: Option<String>,
+  pub supabase_redirect_url: Option<String>,
   pub cloud_sync_url: Option<String>,
   pub releases_api_url: Option<String>,
   pub releases_page_url: Option<String>,
@@ -85,7 +88,7 @@ impl RuntimeAppConfig {
   }
 
   pub fn hosted_cloud_enabled(&self) -> bool {
-    self.cloud_api_url.is_some() && self.cloud_sync_url.is_some()
+    self.supabase_url.is_some() && self.supabase_anon_key.is_some()
   }
 
   pub fn updater_enabled(&self) -> bool {
@@ -171,6 +174,13 @@ fn compile_time_optional(name: &str) -> Option<String> {
     "TWITTERBROWSER_CLOUD_API_URL" => {
       option_env!("TWITTERBROWSER_CLOUD_API_URL").map(str::to_string)
     }
+    "TWITTERBROWSER_SUPABASE_URL" => option_env!("TWITTERBROWSER_SUPABASE_URL").map(str::to_string),
+    "TWITTERBROWSER_SUPABASE_ANON_KEY" => {
+      option_env!("TWITTERBROWSER_SUPABASE_ANON_KEY").map(str::to_string)
+    }
+    "TWITTERBROWSER_SUPABASE_REDIRECT_URL" => {
+      option_env!("TWITTERBROWSER_SUPABASE_REDIRECT_URL").map(str::to_string)
+    }
     "TWITTERBROWSER_CLOUD_SYNC_URL" => {
       option_env!("TWITTERBROWSER_CLOUD_SYNC_URL").map(str::to_string)
     }
@@ -215,6 +225,10 @@ where
     support_url: optional_setting(&lookup, "TWITTERBROWSER_SUPPORT_URL"),
     account_url: optional_setting(&lookup, "TWITTERBROWSER_ACCOUNT_URL"),
     cloud_api_url: optional_setting(&lookup, "TWITTERBROWSER_CLOUD_API_URL"),
+    supabase_url: optional_setting(&lookup, "TWITTERBROWSER_SUPABASE_URL"),
+    supabase_anon_key: optional_setting(&lookup, "TWITTERBROWSER_SUPABASE_ANON_KEY"),
+    supabase_redirect_url: optional_setting(&lookup, "TWITTERBROWSER_SUPABASE_REDIRECT_URL")
+      .or_else(|| Some("twitterbrowser://auth/callback".to_string())),
     cloud_sync_url: optional_setting(&lookup, "TWITTERBROWSER_CLOUD_SYNC_URL"),
     releases_api_url: optional_setting(&lookup, "TWITTERBROWSER_RELEASES_API_URL"),
     releases_page_url: optional_setting(&lookup, "TWITTERBROWSER_RELEASES_PAGE_URL"),
@@ -259,12 +273,17 @@ mod tests {
     assert!(!config.hosted_cloud_enabled());
     assert!(!config.updater_enabled());
     assert_eq!(config.wayfern_metadata_url, None);
+    assert_eq!(
+      config.supabase_redirect_url.as_deref(),
+      Some("twitterbrowser://auth/callback")
+    );
   }
 
   #[test]
   fn runtime_env_enables_hosted_cloud_and_updater() {
     let config = resolve_with_map(&[
-      ("TWITTERBROWSER_CLOUD_API_URL", "https://api.example.com"),
+      ("TWITTERBROWSER_SUPABASE_URL", "https://example.supabase.co"),
+      ("TWITTERBROWSER_SUPABASE_ANON_KEY", "anon-key"),
       ("TWITTERBROWSER_CLOUD_SYNC_URL", "https://sync.example.com"),
       (
         "TWITTERBROWSER_RELEASES_API_URL",
@@ -295,9 +314,22 @@ mod tests {
   }
 
   #[test]
+  fn hosted_auth_can_be_enabled_without_sync_server_url() {
+    let config = resolve_with_map(&[
+      ("TWITTERBROWSER_SUPABASE_URL", "https://example.supabase.co"),
+      ("TWITTERBROWSER_SUPABASE_ANON_KEY", "anon-key"),
+    ]);
+
+    assert!(config.hosted_cloud_enabled());
+    assert_eq!(config.hosted_cloud_ui_mode(), "enabled");
+    assert_eq!(config.cloud_sync_url, None);
+  }
+
+  #[test]
   fn blank_env_values_are_treated_as_missing() {
     let config = resolve_with_map(&[
-      ("TWITTERBROWSER_CLOUD_API_URL", " "),
+      ("TWITTERBROWSER_SUPABASE_URL", " "),
+      ("TWITTERBROWSER_SUPABASE_ANON_KEY", ""),
       ("TWITTERBROWSER_CLOUD_SYNC_URL", ""),
       ("TWITTERBROWSER_RELEASES_API_URL", "\n\t"),
     ]);

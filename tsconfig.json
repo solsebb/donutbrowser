@@ -38,6 +38,7 @@
     "nodecar",
     "src-tauri/target",
     "donut-sync",
+    "supabase",
     "camoufox-js"
   ]
 }

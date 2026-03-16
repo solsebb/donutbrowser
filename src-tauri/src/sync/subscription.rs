@@ -1,5 +1,5 @@
 use crate::events;
-use crate::settings_manager::SettingsManager;
+use crate::settings_manager::{ActiveSyncMode, SettingsManager};
 use reqwest::Client;
 use serde::Deserialize;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -56,8 +56,15 @@ impl SyncSubscription {
     app_handle: &tauri::AppHandle,
     work_tx: mpsc::UnboundedSender<SyncWorkItem>,
   ) -> Result<Option<Self>, String> {
-    // Cloud auth takes priority
-    if crate::cloud_auth::CLOUD_AUTH.is_logged_in().await {
+    let manager = SettingsManager::instance();
+    let active_mode = manager
+      .get_active_sync_mode()
+      .map_err(|e| format!("Failed to load active sync mode: {e}"))?;
+
+    if active_mode == ActiveSyncMode::Hosted {
+      if !crate::cloud_auth::CLOUD_AUTH.is_hosted_sync_active().await {
+        return Ok(None);
+      }
       let Some(url) = crate::cloud_auth::cloud_sync_url().map(str::to_string) else {
         return Ok(None);
       };
@@ -71,13 +78,15 @@ impl SyncSubscription {
       return Ok(Some(Self::new(url, token, work_tx)));
     }
 
-    // Fall back to self-hosted settings
-    let manager = SettingsManager::instance();
+    if active_mode != ActiveSyncMode::SelfHosted {
+      return Ok(None);
+    }
+
     let settings = manager
       .load_settings()
       .map_err(|e| format!("Failed to load settings: {e}"))?;
 
-    let Some(server_url) = settings.sync_server_url else {
+    let Some(server_url) = settings.self_hosted_sync_server_url else {
       return Ok(None);
     };
 

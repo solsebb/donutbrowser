@@ -190,6 +190,13 @@ impl<R: Runtime> WindowExt for WebviewWindow<R> {
 async fn handle_url_open(app: tauri::AppHandle, url: String) -> Result<(), String> {
   log::info!("handle_url_open called with URL: {url}");
 
+  if cloud_auth::CloudAuthManager::is_oauth_callback_url(&url) {
+    let _ = cloud_auth::CLOUD_AUTH
+      .handle_oauth_callback(app.clone(), &url)
+      .await;
+    return Ok(());
+  }
+
   // Check if the main window exists and is ready
   if let Some(window) = app.get_webview_window("main") {
     log::debug!("Main window exists");
@@ -1529,14 +1536,6 @@ pub fn run() {
           if let Err(e) = cloud_auth::CLOUD_AUTH.get_or_refresh_sync_token().await {
             log::warn!("Failed to refresh cloud sync token on startup: {e}");
           }
-          cloud_auth::CLOUD_AUTH.sync_cloud_proxy().await;
-
-          // Request wayfern token on startup for paid users
-          if cloud_auth::CLOUD_AUTH.has_active_paid_subscription().await {
-            if let Err(e) = cloud_auth::CLOUD_AUTH.request_wayfern_token().await {
-              log::warn!("Failed to request wayfern token on startup: {e}");
-            }
-          }
         }
         cloud_auth::CloudAuthManager::start_sync_token_refresh_loop(app_handle_cloud).await;
       });
@@ -1682,12 +1681,15 @@ pub fn run() {
       get_vpn_status,
       list_active_vpn_connections,
       // Cloud auth commands
-      cloud_auth::cloud_request_otp,
-      cloud_auth::cloud_verify_otp,
-      cloud_auth::cloud_get_user,
+      cloud_auth::hosted_auth_request_email_otp,
+      cloud_auth::hosted_auth_verify_email_otp,
+      cloud_auth::hosted_auth_sign_in_with_password,
+      cloud_auth::hosted_auth_start_google_sign_in,
+      cloud_auth::hosted_auth_get_user,
+      cloud_auth::hosted_auth_logout,
+      cloud_auth::hosted_sync_enable,
+      cloud_auth::hosted_sync_disable,
       cloud_auth::cloud_refresh_profile,
-      cloud_auth::cloud_logout,
-      cloud_auth::cloud_get_proxy_usage,
       cloud_auth::cloud_get_countries,
       cloud_auth::cloud_get_regions,
       cloud_auth::cloud_get_cities,

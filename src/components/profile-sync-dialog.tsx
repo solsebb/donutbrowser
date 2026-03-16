@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { useCloudAuth } from "@/hooks/use-cloud-auth";
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 import type { BrowserProfile, SyncMode, SyncSettings } from "@/types";
 import { isSyncEnabled } from "@/types";
@@ -37,9 +36,6 @@ export function ProfileSyncDialog({
 }: ProfileSyncDialogProps) {
   const { t } = useTranslation();
   const runtimeConfig = useRuntimeAppConfig();
-  const { user: cloudUser } = useCloudAuth();
-  const hasCloudSyncConfig =
-    runtimeConfig.hosted_cloud_ui_mode === "enabled" && cloudUser != null;
   const canUseEncryption = runtimeConfig.self_hosted_sync_enabled;
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -47,23 +43,36 @@ export function ProfileSyncDialog({
     profile?.sync_mode ?? "Disabled",
   );
   const [hasSelfHostedConfig, setHasSelfHostedConfig] = useState(false);
+  const [hasHostedSyncConfig, setHasHostedSyncConfig] = useState(false);
   const [hasE2ePassword, setHasE2ePassword] = useState(false);
   const [isCheckingConfig, setIsCheckingConfig] = useState(false);
   const [userChangedMode, setUserChangedMode] = useState(false);
 
-  const hasConfig = hasCloudSyncConfig || hasSelfHostedConfig;
+  const hasConfig = hasHostedSyncConfig || hasSelfHostedConfig;
 
   const checkSyncConfig = useCallback(async () => {
     setIsCheckingConfig(true);
     try {
       const settings = await invoke<SyncSettings>("get_sync_settings");
       setHasSelfHostedConfig(
-        Boolean(settings.sync_server_url && settings.sync_token),
+        Boolean(
+          settings.active_sync_mode === "self_hosted" &&
+            settings.self_hosted_sync_server_url &&
+            settings.self_hosted_sync_token,
+        ),
+      );
+      setHasHostedSyncConfig(
+        Boolean(
+          settings.active_sync_mode === "hosted" &&
+            settings.hosted_sync_enabled &&
+            settings.hosted_sync_available,
+        ),
       );
       const hasPassword = await invoke<boolean>("check_has_e2e_password");
       setHasE2ePassword(hasPassword);
     } catch {
       setHasSelfHostedConfig(false);
+      setHasHostedSyncConfig(false);
     } finally {
       setIsCheckingConfig(false);
     }

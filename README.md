@@ -69,6 +69,20 @@ If you face any problems while using the application, please [open an issue](htt
 
 TwitterBrowser supports syncing profiles, proxies, and groups across devices via a self-hosted sync server. See the [Self-Hosting Guide](docs/self-hosting-donut-sync.md) for Docker-based setup instructions.
 
+## Hosted Auth with Supabase
+
+TwitterBrowser can also run with hosted auth + hosted sync backed by Supabase Auth, Supabase Postgres, and `donut-sync`. See [docs/supabase-hosted-auth.md](docs/supabase-hosted-auth.md).
+
+## Public Hosted Sync Deployment
+
+The recommended public hosted stack for this repo is:
+
+- Supabase for auth and hosted sync JWT issuance
+- Railway for the public `donut-sync` service
+- Cloudflare R2 for sync object storage
+
+See [docs/hosted-sync-railway-r2.md](docs/hosted-sync-railway-r2.md) for the full deployment flow.
+
 ## Community
 
 Have questions or want to contribute? The team would love to hear from you!

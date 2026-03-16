@@ -24,6 +24,7 @@
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.1.16",
     "@nestjs/platform-express": "^11.1.16",
+    "@supabase/supabase-js": "^2.57.4",
     "jsonwebtoken": "^9.0.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"

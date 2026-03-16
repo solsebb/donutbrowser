@@ -55,6 +55,14 @@
 				<string>https</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>TwitterBrowser Auth Callback</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>twitterbrowser</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist> 
