@@ -8,3 +8,5 @@ coverage
 .git
 *.log
 test
+dist
+node_modules

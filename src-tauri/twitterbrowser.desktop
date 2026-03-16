@@ -11,6 +11,6 @@ Icon=twitterbrowser
 StartupNotify=true
 NoDisplay=false
 Categories=Network;WebBrowser;
-MimeType=x-scheme-handler/http;x-scheme-handler/https;text/html;application/xhtml+xml;
+MimeType=x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/twitterbrowser;text/html;application/xhtml+xml;
 StartupWMClass=twitterbrowser
 Keywords=browser;web;internet;productivity;

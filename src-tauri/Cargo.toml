@@ -78,6 +78,7 @@ axum = { version = "0.8.8", features = ["ws"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors"] }
 rand = "0.9.2"
+sha2 = "0.10"
 utoipa = { version = "5", features = ["axum_extras", "chrono"] }
 utoipa-axum = "0.2"
 argon2 = "0.5"

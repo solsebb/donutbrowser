@@ -9,6 +9,13 @@ interface UseCloudAuthReturn {
   isLoading: boolean;
   requestOtp: (email: string) => Promise<string>;
   verifyOtp: (email: string, code: string) => Promise<CloudAuthState>;
+  signInWithPassword: (
+    email: string,
+    password: string,
+  ) => Promise<CloudAuthState>;
+  startGoogleSignIn: () => Promise<void>;
+  enableHostedSync: () => Promise<void>;
+  disableHostedSync: () => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<CloudUser>;
 }
@@ -19,7 +26,7 @@ export function useCloudAuth(): UseCloudAuthReturn {
 
   const loadUser = useCallback(async () => {
     try {
-      const state = await invoke<CloudAuthState | null>("cloud_get_user");
+      const state = await invoke<CloudAuthState | null>("hosted_auth_get_user");
       setAuthState(state);
     } catch (error) {
       console.error("Failed to load cloud auth state:", error);
@@ -51,23 +58,53 @@ export function useCloudAuth(): UseCloudAuthReturn {
   }, [loadUser]);
 
   const requestOtp = useCallback(async (email: string): Promise<string> => {
-    return invoke<string>("cloud_request_otp", { email });
+    return invoke<string>("hosted_auth_request_email_otp", { email });
   }, []);
 
   const verifyOtp = useCallback(
     async (email: string, code: string): Promise<CloudAuthState> => {
-      const state = await invoke<CloudAuthState>("cloud_verify_otp", {
-        email,
-        code,
-      });
+      const state = await invoke<CloudAuthState>(
+        "hosted_auth_verify_email_otp",
+        {
+          email,
+          code,
+        },
+      );
       setAuthState(state);
       return state;
     },
     [],
   );
 
+  const signInWithPassword = useCallback(
+    async (email: string, password: string): Promise<CloudAuthState> => {
+      const state = await invoke<CloudAuthState>(
+        "hosted_auth_sign_in_with_password",
+        {
+          email,
+          password,
+        },
+      );
+      setAuthState(state);
+      return state;
+    },
+    [],
+  );
+
+  const startGoogleSignIn = useCallback(async () => {
+    await invoke("hosted_auth_start_google_sign_in");
+  }, []);
+
+  const enableHostedSync = useCallback(async () => {
+    await invoke("hosted_sync_enable");
+  }, []);
+
+  const disableHostedSync = useCallback(async () => {
+    await invoke("hosted_sync_disable");
+  }, []);
+
   const logout = useCallback(async () => {
-    await invoke("cloud_logout");
+    await invoke("hosted_auth_logout");
     setAuthState(null);
   }, []);
 
@@ -87,6 +124,10 @@ export function useCloudAuth(): UseCloudAuthReturn {
     isLoading,
     requestOtp,
     verifyOtp,
+    signInWithPassword,
+    startGoogleSignIn,
+    enableHostedSync,
+    disableHostedSync,
     logout,
     refreshProfile,
   };

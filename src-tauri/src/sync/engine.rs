@@ -5,7 +5,7 @@ use super::types::*;
 use crate::events;
 use crate::profile::types::{BrowserProfile, SyncMode};
 use crate::profile::ProfileManager;
-use crate::settings_manager::SettingsManager;
+use crate::settings_manager::{ActiveSyncMode, SettingsManager};
 use chrono::{DateTime, Utc};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -47,6 +47,49 @@ fn is_critical_file(path: &str) -> bool {
   CRITICAL_FILE_PATTERNS
     .iter()
     .any(|pattern| path.contains(pattern))
+}
+
+async fn ensure_active_sync_target_configured(
+  app_handle: &tauri::AppHandle,
+) -> Result<ActiveSyncMode, String> {
+  let manager = SettingsManager::instance();
+  let active_mode = manager
+    .get_active_sync_mode()
+    .map_err(|e| format!("Failed to load active sync mode: {e}"))?;
+
+  match active_mode {
+    ActiveSyncMode::Hosted => {
+      if !crate::cloud_auth::CLOUD_AUTH.is_hosted_sync_active().await {
+        return Err(
+          "Hosted sync is not enabled. Open Sync Configuration to enable it.".to_string(),
+        );
+      }
+      Ok(ActiveSyncMode::Hosted)
+    }
+    ActiveSyncMode::SelfHosted => {
+      let settings = manager
+        .load_settings()
+        .map_err(|e| format!("Failed to load settings: {e}"))?;
+
+      if settings.self_hosted_sync_server_url.is_none() {
+        return Err(
+          "Sync server not configured. Please configure self-hosted sync first.".to_string(),
+        );
+      }
+
+      let token = manager.get_sync_token(app_handle).await.ok().flatten();
+      if token.is_none() {
+        return Err(
+          "Sync token not configured. Please configure self-hosted sync first.".to_string(),
+        );
+      }
+
+      Ok(ActiveSyncMode::SelfHosted)
+    }
+    ActiveSyncMode::None => {
+      Err("Sync is not enabled. Open Sync Configuration to choose a sync mode.".to_string())
+    }
+  }
 }
 
 /// Resume state persisted to disk so interrupted syncs can continue
@@ -192,14 +235,19 @@ impl SyncProgressTracker {
 
 /// Check if sync is configured (cloud or self-hosted)
 pub fn is_sync_configured() -> bool {
-  if crate::cloud_auth::CLOUD_AUTH.has_active_paid_subscription_sync() {
-    return true;
-  }
   let manager = SettingsManager::instance();
-  if let Ok(settings) = manager.load_settings() {
-    return settings.sync_server_url.is_some();
+  let Ok(active_mode) = manager.get_active_sync_mode() else {
+    return false;
+  };
+
+  match active_mode {
+    ActiveSyncMode::Hosted => crate::cloud_auth::hosted_cloud_enabled(),
+    ActiveSyncMode::SelfHosted => manager
+      .load_settings()
+      .map(|settings| settings.self_hosted_sync_server_url.is_some())
+      .unwrap_or(false),
+    ActiveSyncMode::None => false,
   }
-  false
 }
 
 pub struct SyncEngine {
@@ -214,8 +262,15 @@ impl SyncEngine {
   }
 
   pub async fn create_from_settings(app_handle: &tauri::AppHandle) -> Result<Self, String> {
-    // Cloud auth takes priority
-    if crate::cloud_auth::CLOUD_AUTH.is_logged_in().await {
+    let manager = SettingsManager::instance();
+    let active_mode = manager
+      .get_active_sync_mode()
+      .map_err(|e| format!("Failed to load active sync mode: {e}"))?;
+
+    if active_mode == ActiveSyncMode::Hosted {
+      if !crate::cloud_auth::CLOUD_AUTH.is_hosted_sync_active().await {
+        return Err("Hosted sync is not enabled on this device".to_string());
+      }
       let Some(url) = crate::cloud_auth::cloud_sync_url().map(str::to_string) else {
         return Err("Hosted cloud sync is not configured for this build".to_string());
       };
@@ -227,14 +282,16 @@ impl SyncEngine {
       return Ok(Self::new(url, token));
     }
 
-    // Fall back to self-hosted settings
-    let manager = SettingsManager::instance();
+    if active_mode != ActiveSyncMode::SelfHosted {
+      return Err("Sync is not enabled".to_string());
+    }
+
     let settings = manager
       .load_settings()
       .map_err(|e| format!("Failed to load settings: {e}"))?;
 
     let server_url = settings
-      .sync_server_url
+      .self_hosted_sync_server_url
       .ok_or_else(|| "Sync server URL not configured".to_string())?;
 
     let token = manager
@@ -260,7 +317,7 @@ impl SyncEngine {
 
   /// Check if this is a self-hosted sync (no cloud login).
   async fn is_self_hosted_sync() -> bool {
-    !crate::cloud_auth::CLOUD_AUTH.is_logged_in().await
+    !crate::cloud_auth::CLOUD_AUTH.is_hosted_sync_active().await
   }
 
   pub async fn sync_profile(
@@ -2571,54 +2628,22 @@ pub async fn set_profile_sync_mode(
   let enabling = new_mode != SyncMode::Disabled;
 
   if enabling {
-    let cloud_logged_in = crate::cloud_auth::CLOUD_AUTH.is_logged_in().await;
-
-    if !cloud_logged_in {
-      let manager = SettingsManager::instance();
-      let settings = manager
-        .load_settings()
-        .map_err(|e| format!("Failed to load settings: {e}"))?;
-
-      if settings.sync_server_url.is_none() {
-        let _ = events::emit(
-          "profile-sync-status",
-          serde_json::json!({
-            "profile_id": profile_id,
-            "profile_name": profile.name,
-            "status": "error",
-            "error": "Sync server not configured. Please configure sync settings first."
-          }),
-        );
-        return Err(
-          "Sync server not configured. Please configure sync settings first.".to_string(),
-        );
-      }
-
-      let token = manager.get_sync_token(&app_handle).await.ok().flatten();
-      if token.is_none() {
-        let _ = events::emit(
-          "profile-sync-status",
-          serde_json::json!({
-            "profile_id": profile_id,
-            "profile_name": profile.name,
-            "status": "error",
-            "error": "Sync token not configured. Please configure sync settings first."
-          }),
-        );
-        return Err("Sync token not configured. Please configure sync settings first.".to_string());
-      }
+    if let Err(error) = ensure_active_sync_target_configured(&app_handle).await {
+      let _ = events::emit(
+        "profile-sync-status",
+        serde_json::json!({
+          "profile_id": profile_id,
+          "profile_name": profile.name,
+          "status": "error",
+          "error": error
+        }),
+      );
+      return Err(error);
     }
   }
 
   // If switching to Encrypted, verify eligibility, password, and generate salt
   if new_mode == SyncMode::Encrypted {
-    // Only pro users and team owners can enable encryption
-    if let Some(state) = crate::cloud_auth::CLOUD_AUTH.get_user().await {
-      if state.user.plan == "team" && state.user.team_role.as_deref() != Some("owner") {
-        return Err("Profile encryption is available for Pro users and team owners.".to_string());
-      }
-    }
-
     if !encryption::has_e2e_password() {
       return Err("E2E password not set. Please set a password in Settings first.".to_string());
     }
@@ -2727,7 +2752,7 @@ pub async fn set_profile_sync_mode(
     );
   }
 
-  if crate::cloud_auth::CLOUD_AUTH.is_logged_in().await {
+  if crate::cloud_auth::CLOUD_AUTH.is_hosted_sync_active().await {
     let sync_count = profile_manager
       .list_profiles()
       .map(|profiles| profiles.iter().filter(|p| p.is_sync_enabled()).count())
@@ -2845,25 +2870,7 @@ pub async fn set_proxy_sync_enabled(
 
   // If enabling, check that sync settings are configured
   if enabled {
-    let cloud_logged_in = crate::cloud_auth::CLOUD_AUTH.is_logged_in().await;
-
-    if !cloud_logged_in {
-      let manager = SettingsManager::instance();
-      let settings = manager
-        .load_settings()
-        .map_err(|e| format!("Failed to load settings: {e}"))?;
-
-      if settings.sync_server_url.is_none() {
-        return Err(
-          "Sync server not configured. Please configure sync settings first.".to_string(),
-        );
-      }
-
-      let token = manager.get_sync_token(&app_handle).await.ok().flatten();
-      if token.is_none() {
-        return Err("Sync token not configured. Please configure sync settings first.".to_string());
-      }
-    }
+    ensure_active_sync_target_configured(&app_handle).await?;
   }
 
   let mut updated_proxy = proxy.clone();
@@ -2929,25 +2936,7 @@ pub async fn set_group_sync_enabled(
 
   // If enabling, check that sync settings are configured
   if enabled {
-    let cloud_logged_in = crate::cloud_auth::CLOUD_AUTH.is_logged_in().await;
-
-    if !cloud_logged_in {
-      let manager = SettingsManager::instance();
-      let settings = manager
-        .load_settings()
-        .map_err(|e| format!("Failed to load settings: {e}"))?;
-
-      if settings.sync_server_url.is_none() {
-        return Err(
-          "Sync server not configured. Please configure sync settings first.".to_string(),
-        );
-      }
-
-      let token = manager.get_sync_token(&app_handle).await.ok().flatten();
-      if token.is_none() {
-        return Err("Sync token not configured. Please configure sync settings first.".to_string());
-      }
-    }
+    ensure_active_sync_target_configured(&app_handle).await?;
   }
 
   let mut updated_group = group.clone();
@@ -3021,25 +3010,7 @@ pub async fn set_vpn_sync_enabled(
 
   // If enabling, check that sync settings are configured
   if enabled {
-    let cloud_logged_in = crate::cloud_auth::CLOUD_AUTH.is_logged_in().await;
-
-    if !cloud_logged_in {
-      let manager = SettingsManager::instance();
-      let settings = manager
-        .load_settings()
-        .map_err(|e| format!("Failed to load settings: {e}"))?;
-
-      if settings.sync_server_url.is_none() {
-        return Err(
-          "Sync server not configured. Please configure sync settings first.".to_string(),
-        );
-      }
-
-      let token = manager.get_sync_token(&app_handle).await.ok().flatten();
-      if token.is_none() {
-        return Err("Sync token not configured. Please configure sync settings first.".to_string());
-      }
-    }
+    ensure_active_sync_target_configured(&app_handle).await?;
   }
 
   let last_sync = if enabled { vpn.last_sync } else { None };
@@ -3244,22 +3215,7 @@ pub async fn set_extension_sync_enabled(
   };
 
   if enabled {
-    let cloud_logged_in = crate::cloud_auth::CLOUD_AUTH.is_logged_in().await;
-    if !cloud_logged_in {
-      let manager = SettingsManager::instance();
-      let settings = manager
-        .load_settings()
-        .map_err(|e| format!("Failed to load settings: {e}"))?;
-      if settings.sync_server_url.is_none() {
-        return Err(
-          "Sync server not configured. Please configure sync settings first.".to_string(),
-        );
-      }
-      let token = manager.get_sync_token(&app_handle).await.ok().flatten();
-      if token.is_none() {
-        return Err("Sync token not configured. Please configure sync settings first.".to_string());
-      }
-    }
+    ensure_active_sync_target_configured(&app_handle).await?;
   }
 
   let mut updated_ext = ext;
@@ -3300,22 +3256,7 @@ pub async fn set_extension_group_sync_enabled(
   };
 
   if enabled {
-    let cloud_logged_in = crate::cloud_auth::CLOUD_AUTH.is_logged_in().await;
-    if !cloud_logged_in {
-      let manager = SettingsManager::instance();
-      let settings = manager
-        .load_settings()
-        .map_err(|e| format!("Failed to load settings: {e}"))?;
-      if settings.sync_server_url.is_none() {
-        return Err(
-          "Sync server not configured. Please configure sync settings first.".to_string(),
-        );
-      }
-      let token = manager.get_sync_token(&app_handle).await.ok().flatten();
-      if token.is_none() {
-        return Err("Sync token not configured. Please configure sync settings first.".to_string());
-      }
-    }
+    ensure_active_sync_target_configured(&app_handle).await?;
   }
 
   let mut updated_group = group;

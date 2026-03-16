@@ -139,6 +139,7 @@ impl StoredProxy {
   }
 
   /// Migrate legacy geo_state to geo_region
+  #[allow(dead_code)]
   pub fn migrate_geo_fields(&mut self) {
     if self.geo_region.is_none() && self.geo_state.is_some() {
       self.geo_region = self.geo_state.take();
@@ -146,6 +147,7 @@ impl StoredProxy {
   }
 
   /// Get the effective region (prefers geo_region, falls back to geo_state for compat)
+  #[allow(dead_code)]
   pub fn effective_region(&self) -> Option<&String> {
     self.geo_region.as_ref().or(self.geo_state.as_ref())
   }
@@ -415,12 +417,14 @@ impl ProxyManager {
   }
 
   // Check if a cloud-managed proxy exists
+  #[allow(dead_code)]
   pub fn has_cloud_proxy(&self) -> bool {
     let stored_proxies = self.stored_proxies.lock().unwrap();
     stored_proxies.contains_key(CLOUD_PROXY_ID)
   }
 
   // Upsert the cloud-managed proxy (create or update)
+  #[allow(dead_code)]
   pub fn upsert_cloud_proxy(&self, proxy_settings: ProxySettings) -> Result<StoredProxy, String> {
     let mut stored_proxies = self.stored_proxies.lock().unwrap();
 
@@ -481,6 +485,7 @@ impl ProxyManager {
     }
   }
 
+  #[allow(dead_code)]
   pub fn remove_cloud_proxies(&self) {
     let removed_ids: Vec<String> = {
       let mut stored_proxies = self.stored_proxies.lock().unwrap();
@@ -514,6 +519,7 @@ impl ProxyManager {
   // LP v2 format: username-country-{cc}[-region-{region}][-city-{city}][-isp-{isp}]
   // Note: sid and ttl are NOT included here — they are injected at browser launch time
   // per-profile via resolve_proxy_for_profile()
+  #[allow(dead_code)]
   fn build_geo_username(
     base_username: &str,
     country: &str,
@@ -585,6 +591,7 @@ impl ProxyManager {
   }
 
   // Create a cloud-derived location proxy from the base cloud proxy credentials
+  #[allow(dead_code)]
   pub fn create_cloud_location_proxy(
     &self,
     name: String,
@@ -658,6 +665,7 @@ impl ProxyManager {
   }
 
   // Update all cloud-derived proxies when base cloud proxy credentials change
+  #[allow(dead_code)]
   pub fn update_cloud_derived_proxies(&self) {
     let base_proxy = {
       let stored_proxies = self.stored_proxies.lock().unwrap();

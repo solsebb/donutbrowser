@@ -44,6 +44,9 @@ fn main() {
   println!("cargo:rerun-if-env-changed=TWITTERBROWSER_SUPPORT_URL");
   println!("cargo:rerun-if-env-changed=TWITTERBROWSER_ACCOUNT_URL");
   println!("cargo:rerun-if-env-changed=TWITTERBROWSER_CLOUD_API_URL");
+  println!("cargo:rerun-if-env-changed=TWITTERBROWSER_SUPABASE_URL");
+  println!("cargo:rerun-if-env-changed=TWITTERBROWSER_SUPABASE_ANON_KEY");
+  println!("cargo:rerun-if-env-changed=TWITTERBROWSER_SUPABASE_REDIRECT_URL");
   println!("cargo:rerun-if-env-changed=TWITTERBROWSER_CLOUD_SYNC_URL");
   println!("cargo:rerun-if-env-changed=TWITTERBROWSER_RELEASES_API_URL");
   println!("cargo:rerun-if-env-changed=TWITTERBROWSER_RELEASES_PAGE_URL");

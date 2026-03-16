@@ -8,6 +8,15 @@ use aes_gcm::{
 };
 use argon2::{password_hash::SaltString, Argon2, PasswordHasher};
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ActiveSyncMode {
+  #[default]
+  None,
+  SelfHosted,
+  Hosted,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TableSortingSettings {
   pub column: String,    // Column to sort by: "name", "browser", "status"
@@ -38,7 +47,11 @@ pub struct AppSettings {
   #[serde(default)]
   pub api_token: Option<String>, // Displayed token for user to copy
   #[serde(default)]
-  pub sync_server_url: Option<String>, // URL of the sync server
+  pub sync_server_url: Option<String>, // Legacy self-hosted sync URL for migration
+  #[serde(default)]
+  pub self_hosted_sync_server_url: Option<String>, // URL of the self-hosted sync server
+  #[serde(default)]
+  pub active_sync_mode: ActiveSyncMode,
   #[serde(default)]
   pub first_launch_timestamp: Option<u64>, // Unix epoch seconds when app was first launched
   #[serde(default)]
@@ -61,8 +74,14 @@ pub struct AppSettings {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct SyncSettings {
+  pub active_sync_mode: ActiveSyncMode,
   pub sync_server_url: Option<String>,
   pub sync_token: Option<String>, // Only populated when reading, not stored in JSON
+  pub self_hosted_sync_server_url: Option<String>,
+  pub self_hosted_sync_token: Option<String>,
+  pub hosted_sync_server_url: Option<String>,
+  pub hosted_sync_enabled: bool,
+  pub hosted_sync_available: bool,
 }
 
 fn default_theme() -> String {
@@ -83,6 +102,8 @@ impl Default for AppSettings {
       api_port: 10108,
       api_token: None,
       sync_server_url: None,
+      self_hosted_sync_server_url: None,
+      active_sync_mode: ActiveSyncMode::None,
       first_launch_timestamp: None,
       commercial_trial_acknowledged: false,
       mcp_enabled: false,
@@ -131,7 +152,12 @@ impl SettingsManager {
 
     // Parse the settings file - serde will use default values for missing fields
     match serde_json::from_str::<AppSettings>(&content) {
-      Ok(settings) => Ok(settings),
+      Ok(mut settings) => {
+        if settings.self_hosted_sync_server_url.is_none() && settings.sync_server_url.is_some() {
+          settings.self_hosted_sync_server_url = settings.sync_server_url.clone();
+        }
+        Ok(settings)
+      }
       Err(e) => {
         log::warn!("Warning: Failed to parse settings file, using defaults: {e}");
         Ok(AppSettings::default())
@@ -683,18 +709,48 @@ impl SettingsManager {
   pub fn get_sync_settings(&self) -> Result<SyncSettings, Box<dyn std::error::Error>> {
     let settings = self.load_settings()?;
     Ok(SyncSettings {
-      sync_server_url: settings.sync_server_url,
+      active_sync_mode: settings.active_sync_mode,
+      sync_server_url: None,
       sync_token: None, // Token needs to be loaded separately via async method
+      self_hosted_sync_server_url: settings.self_hosted_sync_server_url,
+      self_hosted_sync_token: None,
+      hosted_sync_server_url: None,
+      hosted_sync_enabled: false,
+      hosted_sync_available: false,
     })
   }
 
-  pub fn save_sync_server_url(
+  pub fn save_self_hosted_sync_server_url(
     &self,
     url: Option<String>,
   ) -> Result<(), Box<dyn std::error::Error>> {
     let mut settings = self.load_settings()?;
+    settings.self_hosted_sync_server_url = url.clone();
     settings.sync_server_url = url;
     self.save_settings(&settings)
+  }
+
+  pub fn save_active_sync_mode(
+    &self,
+    mode: ActiveSyncMode,
+  ) -> Result<(), Box<dyn std::error::Error>> {
+    let mut settings = self.load_settings()?;
+    settings.active_sync_mode = mode;
+    self.save_settings(&settings)
+  }
+
+  pub fn get_active_sync_mode(&self) -> Result<ActiveSyncMode, Box<dyn std::error::Error>> {
+    Ok(self.load_settings()?.active_sync_mode)
+  }
+
+  pub async fn has_self_hosted_sync_config(
+    &self,
+    app_handle: &tauri::AppHandle,
+  ) -> Result<bool, Box<dyn std::error::Error>> {
+    let settings = self.load_settings()?;
+    let has_url = settings.self_hosted_sync_server_url.is_some();
+    let has_token = self.get_sync_token(app_handle).await?.is_some();
+    Ok(has_url && has_token)
   }
 }
 
@@ -856,31 +912,35 @@ pub async fn save_table_sorting_settings(sorting: TableSortingSettings) -> Resul
 
 #[tauri::command]
 pub async fn get_sync_settings(app_handle: tauri::AppHandle) -> Result<SyncSettings, String> {
-  // Cloud auth takes priority over self-hosted settings
-  if crate::cloud_auth::CLOUD_AUTH.is_logged_in().await {
-    let sync_token = crate::cloud_auth::CLOUD_AUTH
-      .get_or_refresh_sync_token()
-      .await
-      .map_err(|e| format!("Failed to get cloud sync token: {e}"))?;
-    let Some(sync_server_url) = crate::cloud_auth::cloud_sync_url() else {
-      return Ok(SyncSettings::default());
-    };
-    return Ok(SyncSettings {
-      sync_server_url: Some(sync_server_url.to_string()),
-      sync_token,
-    });
-  }
-
-  // Fall back to self-hosted settings
   let manager = SettingsManager::instance();
   let mut sync_settings = manager
     .get_sync_settings()
     .map_err(|e| format!("Failed to load sync settings: {e}"))?;
 
-  sync_settings.sync_token = manager
+  sync_settings.self_hosted_sync_token = manager
     .get_sync_token(&app_handle)
     .await
     .map_err(|e| format!("Failed to load sync token: {e}"))?;
+
+  sync_settings.hosted_sync_server_url = crate::cloud_auth::cloud_sync_url().map(str::to_string);
+  sync_settings.hosted_sync_available =
+    crate::cloud_auth::hosted_cloud_enabled() && crate::cloud_auth::cloud_sync_url().is_some();
+  sync_settings.hosted_sync_enabled = crate::cloud_auth::CLOUD_AUTH.is_hosted_sync_active().await;
+
+  match sync_settings.active_sync_mode {
+    ActiveSyncMode::Hosted if sync_settings.hosted_sync_enabled => {
+      sync_settings.sync_server_url = sync_settings.hosted_sync_server_url.clone();
+      sync_settings.sync_token = crate::cloud_auth::CLOUD_AUTH
+        .get_or_refresh_sync_token()
+        .await
+        .map_err(|e| format!("Failed to get hosted sync token: {e}"))?;
+    }
+    ActiveSyncMode::SelfHosted => {
+      sync_settings.sync_server_url = sync_settings.self_hosted_sync_server_url.clone();
+      sync_settings.sync_token = sync_settings.self_hosted_sync_token.clone();
+    }
+    _ => {}
+  }
 
   Ok(sync_settings)
 }
@@ -894,8 +954,8 @@ pub async fn save_sync_settings(
   let manager = SettingsManager::instance();
 
   manager
-    .save_sync_server_url(sync_server_url.clone())
-    .map_err(|e| format!("Failed to save sync server URL: {e}"))?;
+    .save_self_hosted_sync_server_url(sync_server_url.clone())
+    .map_err(|e| format!("Failed to save self-hosted sync server URL: {e}"))?;
 
   if let Some(ref token) = sync_token {
     manager
@@ -909,10 +969,22 @@ pub async fn save_sync_settings(
       .map_err(|e| format!("Failed to remove sync token: {e}"))?;
   }
 
-  Ok(SyncSettings {
-    sync_server_url,
-    sync_token,
-  })
+  let self_hosted_ready = sync_server_url.is_some() && sync_token.is_some();
+  let previous_mode = manager
+    .get_active_sync_mode()
+    .map_err(|e| format!("Failed to load active sync mode: {e}"))?;
+
+  let next_mode = match previous_mode {
+    ActiveSyncMode::Hosted => ActiveSyncMode::Hosted,
+    _ if self_hosted_ready => ActiveSyncMode::SelfHosted,
+    _ => ActiveSyncMode::None,
+  };
+
+  manager
+    .save_active_sync_mode(next_mode)
+    .map_err(|e| format!("Failed to save active sync mode: {e}"))?;
+
+  get_sync_settings(app_handle).await
 }
 
 #[tauri::command]
@@ -1030,6 +1102,8 @@ mod tests {
       api_port: 10108,
       api_token: None,
       sync_server_url: None,
+      self_hosted_sync_server_url: None,
+      active_sync_mode: ActiveSyncMode::None,
       first_launch_timestamp: None,
       commercial_trial_acknowledged: false,
       mcp_enabled: false,

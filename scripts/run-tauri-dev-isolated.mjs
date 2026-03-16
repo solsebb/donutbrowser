@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadEnvFiles } from "./load-env-files.mjs";
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -32,6 +33,7 @@ function defaultPaths() {
 
 const defaults = defaultPaths();
 const env = {
+  ...loadEnvFiles(repoRoot),
   ...process.env,
   TWITTERBROWSER_DEV_ISOLATED:
     process.env.TWITTERBROWSER_DEV_ISOLATED ??

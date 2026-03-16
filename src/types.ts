@@ -67,9 +67,17 @@ export type SyncMode = "Disabled" | "Regular" | "Encrypted";
 
 export type SyncStatus = "Disabled" | "Syncing" | "Synced" | "Error";
 
+export type ActiveSyncMode = "none" | "self_hosted" | "hosted";
+
 export interface SyncSettings {
+  active_sync_mode?: ActiveSyncMode;
   sync_server_url?: string;
   sync_token?: string;
+  self_hosted_sync_server_url?: string;
+  self_hosted_sync_token?: string;
+  hosted_sync_server_url?: string;
+  hosted_sync_enabled?: boolean;
+  hosted_sync_available?: boolean;
 }
 
 export interface RuntimeAppConfig {
@@ -108,6 +116,11 @@ export interface LegacyImportResult {
 export interface CloudUser {
   id: string;
   email: string;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+  syncPrefix?: string | null;
+  hostedSyncEnabled?: boolean;
+  lastLoginAt?: string | null;
   plan: string;
   planPeriod: string | null;
   subscriptionStatus: string;
