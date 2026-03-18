@@ -5,6 +5,16 @@ extend-exclude = [
     "src/i18n/locales/*.json",
     "src-tauri/build.rs",
     "src-tauri/tests/fixtures/test.ovpn",
+    "intentbot",
+    "apps/twitterbrowser_flutter/build",
+    "apps/twitterbrowser_flutter/macos",
+    "apps/twitterbrowser_flutter/assets/images/subcription_modal_background.svg",
+    "apps/twitterbrowser_flutter/assets/images/subcription_modal_background.png",
+    "apps/twitterbrowser_flutter/assets/images/subcription_modal_background_first.svg",
+    "apps/twitterbrowser_flutter/assets/images/subcription_modal_background_v2.svg",
+    "apps/twitterbrowser_flutter/assets/images/subcription_modal_background_second.svg",
+    "apps/twitterbrowser_flutter/assets/images/subcription_modal_banner.png",
+    "apps/twitterbrowser_flutter/assets/images/image_preview_placholder.png",
 ]
 
 [default.extend-words]

@@ -64,3 +64,13 @@ next-env.d.ts
 linkedin_tommy_cookies.json
 supabase/.temp/
 supabase/.branches/
+
+# vendored reference apps / generated artifacts
+intentbot/
+intentbot/**/.dart_tool/
+intentbot/**/build/
+intentbot/**/node_modules/
+intentbot/**/.next/
+intentbot/trigger/.trigger/
+packages/flutter_shared_core/.dart_tool/
+packages/flutter_shared_core/.flutter-plugins-dependencies

@@ -31,6 +31,7 @@ mod geoip_downloader;
 mod group_manager;
 mod human_typing;
 mod ip_utils;
+mod local_companion;
 mod platform_browser;
 mod profile;
 mod profile_importer;

@@ -353,6 +353,11 @@ impl ApiServer {
     self.shutdown_tx = Some(shutdown_tx);
     self.task_handle = Some(task_handle);
 
+    let settings_manager = crate::settings_manager::SettingsManager::instance();
+    if let Ok(Some(token)) = settings_manager.get_api_token(&app_handle).await {
+      let _ = crate::local_companion::write_status(actual_port, &token);
+    }
+
     Ok(actual_port)
   }
 
@@ -366,6 +371,7 @@ impl ApiServer {
     }
 
     self.port = None;
+    let _ = crate::local_companion::clear_status();
     Ok(())
   }
 }
