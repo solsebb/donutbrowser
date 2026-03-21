@@ -177,12 +177,11 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
           child: ProfilesEmptyState(
             colors: colors,
             isLightTheme: isLightTheme,
-            title: 'Enable hosted sync',
+            title: 'Turn on hosted sync in desktop TwitterBrowser',
             description:
-                'Turn on hosted sync to make profile metadata available in this workspace.',
-            buttonLabel: 'Enable sync',
-            onPressed: () async {
-              await ref.read(hostedAuthServiceProvider).enableHostedSync();
+                'This web workspace only reads the hosted catalog. Open the desktop TwitterBrowser app, sign into this same account, enable hosted sync there, and wait for the first upload to finish.',
+            buttonLabel: 'Refresh status',
+            onPressed: () {
               ref.invalidate(hostedAccountProfileProvider);
               ref.invalidate(currentProfilesProvider);
             },
@@ -209,7 +208,9 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
           child: ProfilesEmptyState(
             colors: colors,
             isLightTheme: isLightTheme,
-            title: 'Unable to load profiles',
+            title: sourceMode == ProfileSourceMode.hosted
+                ? 'Unable to reach the hosted catalog'
+                : 'Unable to load profiles',
             description: profilesError.toString(),
             buttonLabel: 'Retry',
             onPressed: () => ref.invalidate(currentProfilesProvider),
@@ -230,7 +231,7 @@ class _ProfilesScreenState extends ConsumerState<ProfilesScreen> {
             title: 'No profiles yet',
             description: sourceMode == ProfileSourceMode.local
                 ? 'Launch TwitterBrowser and create your first profile to see it here.'
-                : 'Profiles will appear here after they have been synced to your hosted workspace.',
+                : 'Hosted sync is enabled, but the hosted catalog is still empty. Keep the desktop TwitterBrowser app open until the first upload of sync-enabled profiles finishes, then refresh this page.',
             buttonLabel: 'Refresh',
             onPressed: () => ref.invalidate(currentProfilesProvider),
             icon: CupertinoIcons.person_2,

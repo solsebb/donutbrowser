@@ -25,11 +25,16 @@ import type { ActiveSyncMode, SyncSettings } from "@/types";
 interface SyncConfigDialogProps {
   isOpen: boolean;
   onClose: (loginOccurred?: boolean) => void;
+  onReviewUnsyncedItems?: () => void;
 }
 
 type ConnectionStatus = "unknown" | "testing" | "connected" | "error";
 
-export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
+export function SyncConfigDialog({
+  isOpen,
+  onClose,
+  onReviewUnsyncedItems,
+}: SyncConfigDialogProps) {
   const { t } = useTranslation();
   const runtimeConfig = useRuntimeAppConfig();
   const hostedCloudVisible = runtimeConfig.hosted_cloud_ui_mode !== "hidden";
@@ -40,6 +45,7 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
     user,
     isLoggedIn,
     isLoading: isCloudLoading,
+    lastError,
     requestOtp,
     verifyOtp,
     signInWithPassword,
@@ -48,6 +54,7 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
     disableHostedSync,
     logout,
     refreshProfile,
+    clearLastError,
   } = useCloudAuth();
 
   const [syncSettings, setSyncSettings] = useState<SyncSettings | null>(null);
@@ -66,6 +73,14 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
   const [password, setPassword] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
+  const [awaitingGoogleCompletion, setAwaitingGoogleCompletion] =
+    useState(false);
+
+  const handleEmailChange = useCallback((value: string) => {
+    setEmail(value);
+    setCodeSent(false);
+    setOtpCode("");
+  }, []);
 
   const activeSyncMode: ActiveSyncMode =
     syncSettings?.active_sync_mode ?? "none";
@@ -74,6 +89,9 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
   const hasSelfHostedConfig = Boolean(
     selfHostedServerUrl.trim() && selfHostedToken.trim(),
   );
+  const hostedSyncActive = hostedSyncEnabled && activeSyncMode === "hosted";
+  const showHostedActivationStep =
+    isLoggedIn && hostedSyncAvailable && !hostedSyncActive;
 
   const loadSettings = useCallback(async () => {
     setIsLoadingSettings(true);
@@ -103,9 +121,32 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
     setPassword("");
     setOtpCode("");
     setCodeSent(false);
+    setAwaitingGoogleCompletion(false);
     setConnectionStatus("unknown");
     void loadSettings();
   }, [isOpen, loadSettings]);
+
+  useEffect(() => {
+    if (!isOpen || !lastError) {
+      return;
+    }
+
+    setIsSubmittingHostedAction(false);
+    setAwaitingGoogleCompletion(false);
+    showErrorToast(lastError);
+    clearLastError();
+  }, [clearLastError, isOpen, lastError]);
+
+  useEffect(() => {
+    if (!isOpen || !awaitingGoogleCompletion || !isLoggedIn) {
+      return;
+    }
+
+    setIsSubmittingHostedAction(false);
+    setAwaitingGoogleCompletion(false);
+    showSuccessToast(t("sync.hosted.loginConnectedToast"));
+    void loadSettings();
+  }, [awaitingGoogleCompletion, isLoggedIn, isOpen, loadSettings, t]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -213,14 +254,14 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
     try {
       await requestOtp(email.trim());
       setCodeSent(true);
-      showSuccessToast("Verification code sent.");
+      showSuccessToast(t("sync.hosted.sendCodeSuccessToast"));
     } catch (error) {
       console.error("Failed to request hosted OTP:", error);
       showErrorToast(String(error));
     } finally {
       setIsSubmittingHostedAction(false);
     }
-  }, [email, requestOtp]);
+  }, [email, requestOtp, t]);
 
   const verifyEmailOtp = useCallback(async () => {
     if (!email.trim() || !otpCode.trim()) {
@@ -232,14 +273,14 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
     try {
       await verifyOtp(email.trim(), otpCode.trim());
       await loadSettings();
-      showSuccessToast("Hosted account connected.");
+      showSuccessToast(t("sync.hosted.loginConnectedToast"));
     } catch (error) {
       console.error("Failed to verify hosted OTP:", error);
       showErrorToast(String(error));
     } finally {
       setIsSubmittingHostedAction(false);
     }
-  }, [email, loadSettings, otpCode, verifyOtp]);
+  }, [email, loadSettings, otpCode, t, verifyOtp]);
 
   const signInWithEmailPassword = useCallback(async () => {
     if (!email.trim() || !password) {
@@ -251,25 +292,27 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
     try {
       await signInWithPassword(email.trim(), password);
       await loadSettings();
-      showSuccessToast("Hosted account connected.");
+      showSuccessToast(t("sync.hosted.loginConnectedToast"));
     } catch (error) {
       console.error("Failed to sign in with password:", error);
       showErrorToast(String(error));
     } finally {
       setIsSubmittingHostedAction(false);
     }
-  }, [email, loadSettings, password, signInWithPassword]);
+  }, [email, loadSettings, password, signInWithPassword, t]);
 
   const triggerGoogleSignIn = useCallback(async () => {
     setIsSubmittingHostedAction(true);
     try {
       await startGoogleSignIn();
+      setAwaitingGoogleCompletion(true);
       showSuccessToast(
         "Google sign-in opened in your browser. Complete the flow there.",
       );
     } catch (error) {
       console.error("Failed to start Google sign-in:", error);
       showErrorToast(String(error));
+      setAwaitingGoogleCompletion(false);
     } finally {
       setIsSubmittingHostedAction(false);
     }
@@ -280,7 +323,7 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
     try {
       await enableHostedSync();
       await loadSettings();
-      showSuccessToast("Hosted sync enabled.");
+      showSuccessToast(t("sync.hosted.syncEnabledToast"));
       onClose(true);
     } catch (error) {
       console.error("Failed to enable hosted sync:", error);
@@ -288,35 +331,35 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
     } finally {
       setIsSubmittingHostedAction(false);
     }
-  }, [enableHostedSync, loadSettings, onClose]);
+  }, [enableHostedSync, loadSettings, onClose, t]);
 
   const disableHostedSyncMode = useCallback(async () => {
     setIsSubmittingHostedAction(true);
     try {
       await disableHostedSync();
       await loadSettings();
-      showSuccessToast("Hosted sync disabled.");
+      showSuccessToast(t("sync.hosted.syncDisabledToast"));
     } catch (error) {
       console.error("Failed to disable hosted sync:", error);
       showErrorToast(String(error));
     } finally {
       setIsSubmittingHostedAction(false);
     }
-  }, [disableHostedSync, loadSettings]);
+  }, [disableHostedSync, loadSettings, t]);
 
   const logoutHostedAccount = useCallback(async () => {
     setIsSubmittingHostedAction(true);
     try {
       await logout();
       await loadSettings();
-      showSuccessToast("Hosted account signed out.");
+      showSuccessToast(t("sync.hosted.signOutToast"));
     } catch (error) {
       console.error("Failed to sign out of hosted account:", error);
       showErrorToast(String(error));
     } finally {
       setIsSubmittingHostedAction(false);
     }
-  }, [loadSettings, logout]);
+  }, [loadSettings, logout, t]);
 
   const refreshHostedAccount = useCallback(async () => {
     setIsSubmittingHostedAction(true);
@@ -332,29 +375,34 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
     }
   }, [loadSettings, refreshProfile]);
 
+  const reviewUnsyncedItems = useCallback(() => {
+    onClose(false);
+    onReviewUnsyncedItems?.();
+  }, [onClose, onReviewUnsyncedItems]);
+
   const hostedStatusMessage = useMemo(() => {
     if (hostedCloudDisabled) {
       return "Hosted account auth is not configured in this build yet.";
     }
     if (!hostedSyncAvailable) {
       if (!isLoggedIn) {
-        return "Hosted account sign-in is available. Hosted sync will stay disabled until this build is given a TWITTERBROWSER_CLOUD_SYNC_URL.";
+        return t("sync.hosted.syncUnavailableLoggedOut");
       }
-      return "Your hosted account is connected. Hosted sync activation is unavailable until this build is given a TWITTERBROWSER_CLOUD_SYNC_URL.";
+      return t("sync.hosted.syncUnavailableLoggedIn");
     }
     if (!isLoggedIn) {
-      return "Sign in to your hosted TwitterBrowser account, then explicitly enable hosted sync.";
+      return t("sync.hosted.signInFirst");
     }
-    if (hostedSyncEnabled && activeSyncMode === "hosted") {
-      return "Hosted sync is active for this app instance.";
+    if (hostedSyncActive) {
+      return t("sync.hosted.activeStatus");
     }
-    return "Your hosted account is connected. Enable hosted sync when you want cloud-backed sync to become active.";
+    return t("sync.hosted.activationStatus");
   }, [
-    activeSyncMode,
+    hostedSyncActive,
     hostedCloudDisabled,
     hostedSyncAvailable,
-    hostedSyncEnabled,
     isLoggedIn,
+    t,
   ]);
 
   const selfHostedSection = (
@@ -495,9 +543,7 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
               <div>
                 Hosted sync:{" "}
                 <span className="font-medium text-foreground">
-                  {hostedSyncEnabled && activeSyncMode === "hosted"
-                    ? "Enabled"
-                    : "Disabled"}
+                  {hostedSyncActive ? "Enabled" : "Disabled"}
                 </span>
               </div>
               <div>
@@ -531,77 +577,156 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <LoadingButton
-              type="button"
-              isLoading={isSubmittingHostedAction}
-              onClick={enableHostedSyncMode}
-              disabled={
-                !hostedSyncAvailable ||
-                (hostedSyncEnabled && activeSyncMode === "hosted")
-              }
-            >
-              Enable Hosted Sync
-            </LoadingButton>
-            <LoadingButton
-              type="button"
-              variant="outline"
-              isLoading={isSubmittingHostedAction}
-              onClick={disableHostedSyncMode}
-              disabled={!hostedSyncEnabled && activeSyncMode !== "hosted"}
-            >
-              Disable Hosted Sync
-            </LoadingButton>
-            <LoadingButton
-              type="button"
-              variant="outline"
-              isLoading={isSubmittingHostedAction}
-              onClick={refreshHostedAccount}
-            >
-              Refresh Account
-            </LoadingButton>
-            <LoadingButton
-              type="button"
-              variant="destructive"
-              isLoading={isSubmittingHostedAction}
-              onClick={logoutHostedAccount}
-            >
-              Sign Out
-            </LoadingButton>
-          </div>
+          {showHostedActivationStep ? (
+            <div className="grid gap-4 rounded-md border border-warning/50 bg-warning/10 p-4">
+              <div className="space-y-2">
+                <div className="font-medium text-foreground">
+                  {t("sync.hosted.activationTitle")}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {t("sync.hosted.activationDescription")}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <LoadingButton
+                  type="button"
+                  isLoading={isSubmittingHostedAction}
+                  onClick={enableHostedSyncMode}
+                  disabled={!hostedSyncAvailable}
+                >
+                  {t("sync.hosted.enableAction")}
+                </LoadingButton>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onClose(false)}
+                >
+                  {t("sync.hosted.keepLocalOnly")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={reviewUnsyncedItems}
+                >
+                  {t("sync.hosted.reviewUnsyncedItemsAction")}
+                </Button>
+                <LoadingButton
+                  type="button"
+                  variant="outline"
+                  isLoading={isSubmittingHostedAction}
+                  onClick={refreshHostedAccount}
+                >
+                  {t("sync.hosted.refreshAction")}
+                </LoadingButton>
+                <LoadingButton
+                  type="button"
+                  variant="destructive"
+                  isLoading={isSubmittingHostedAction}
+                  onClick={logoutHostedAccount}
+                >
+                  {t("sync.hosted.signOutAction")}
+                </LoadingButton>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <LoadingButton
+                type="button"
+                isLoading={isSubmittingHostedAction}
+                onClick={enableHostedSyncMode}
+                disabled={!hostedSyncAvailable || hostedSyncActive}
+              >
+                {t("sync.hosted.enableAction")}
+              </LoadingButton>
+              <LoadingButton
+                type="button"
+                variant="outline"
+                isLoading={isSubmittingHostedAction}
+                onClick={disableHostedSyncMode}
+                disabled={!hostedSyncEnabled && activeSyncMode !== "hosted"}
+              >
+                {t("sync.hosted.disableAction")}
+              </LoadingButton>
+              <LoadingButton
+                type="button"
+                variant="outline"
+                isLoading={isSubmittingHostedAction}
+                onClick={refreshHostedAccount}
+              >
+                {t("sync.hosted.refreshAction")}
+              </LoadingButton>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={reviewUnsyncedItems}
+              >
+                {t("sync.hosted.reviewUnsyncedItemsAction")}
+              </Button>
+              <LoadingButton
+                type="button"
+                variant="destructive"
+                isLoading={isSubmittingHostedAction}
+                onClick={logoutHostedAccount}
+              >
+                {t("sync.hosted.signOutAction")}
+              </LoadingButton>
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid gap-5">
           {!hostedSyncAvailable ? (
             <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-              Hosted account sign-in is ready. Add
-              `TWITTERBROWSER_CLOUD_SYNC_URL` to this build when you are ready
-              to activate hosted sync.
+              {t("sync.hosted.syncReadyHint")}
             </div>
           ) : null}
 
           <div className="grid gap-3 rounded-md border p-4">
             <div className="font-medium text-foreground">
-              Sign in with Email and Password
+              {t("sync.hosted.googleTitle")}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {t("sync.hosted.googleDescription")}
+            </div>
+            <LoadingButton
+              type="button"
+              variant="outline"
+              isLoading={isSubmittingHostedAction}
+              onClick={triggerGoogleSignIn}
+            >
+              {t("sync.hosted.googleAction")}
+            </LoadingButton>
+          </div>
+
+          <div className="grid gap-3 rounded-md border p-4">
+            <div className="font-medium text-foreground">
+              {t("sync.hosted.passwordTitle")}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {t("sync.hosted.passwordDescription")}
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="hosted-email-password-email">Email</Label>
+              <Label htmlFor="hosted-email-password-email">
+                {t("sync.cloud.email")}
+              </Label>
               <Input
                 id="hosted-email-password-email"
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@example.com"
+                onChange={(event) => handleEmailChange(event.target.value)}
+                placeholder={t("sync.cloud.emailPlaceholder")}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="hosted-email-password-password">Password</Label>
+              <Label htmlFor="hosted-email-password-password">
+                {t("proxies.form.password")}
+              </Label>
               <Input
                 id="hosted-email-password-password"
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="Enter your password"
+                placeholder={t("sync.hosted.passwordPlaceholder")}
               />
             </div>
             <LoadingButton
@@ -609,34 +734,46 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
               isLoading={isSubmittingHostedAction}
               onClick={signInWithEmailPassword}
             >
-              Sign In
+              {t("sync.hosted.passwordAction")}
             </LoadingButton>
           </div>
 
           <div className="grid gap-3 rounded-md border p-4">
             <div className="font-medium text-foreground">
-              Sign in with Email Code
+              {t("sync.hosted.emailCodeTitle")}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {t("sync.hosted.emailCodeDescription")}
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="hosted-email-otp-email">Email</Label>
+              <Label htmlFor="hosted-email-otp-email">
+                {t("sync.cloud.email")}
+              </Label>
               <Input
                 id="hosted-email-otp-email"
                 type="email"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@example.com"
+                onChange={(event) => handleEmailChange(event.target.value)}
+                placeholder={t("sync.cloud.emailPlaceholder")}
               />
             </div>
             {codeSent ? (
-              <div className="grid gap-2">
-                <Label htmlFor="hosted-email-otp-code">Verification Code</Label>
-                <Input
-                  id="hosted-email-otp-code"
-                  value={otpCode}
-                  onChange={(event) => setOtpCode(event.target.value)}
-                  placeholder="123456"
-                />
-              </div>
+              <>
+                <div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">
+                  {t("sync.hosted.emailCodeSentHint")}
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="hosted-email-otp-code">
+                    {t("sync.cloud.verificationCode")}
+                  </Label>
+                  <Input
+                    id="hosted-email-otp-code"
+                    value={otpCode}
+                    onChange={(event) => setOtpCode(event.target.value)}
+                    placeholder={t("sync.cloud.codePlaceholder")}
+                  />
+                </div>
+              </>
             ) : null}
             <div className="flex flex-wrap gap-2">
               <LoadingButton
@@ -645,7 +782,7 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
                 isLoading={isSubmittingHostedAction}
                 onClick={sendOtp}
               >
-                Send Code
+                {t("sync.cloud.sendCode")}
               </LoadingButton>
               <LoadingButton
                 type="button"
@@ -653,27 +790,9 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
                 onClick={verifyEmailOtp}
                 disabled={!codeSent || !otpCode.trim()}
               >
-                Verify Code
+                {t("sync.cloud.verifyAndLogin")}
               </LoadingButton>
             </div>
-          </div>
-
-          <div className="grid gap-3 rounded-md border p-4">
-            <div className="font-medium text-foreground">
-              Sign in with Google
-            </div>
-            <div className="text-sm text-muted-foreground">
-              TwitterBrowser will open your browser and complete the OAuth flow
-              through the configured deep link callback.
-            </div>
-            <LoadingButton
-              type="button"
-              variant="outline"
-              isLoading={isSubmittingHostedAction}
-              onClick={triggerGoogleSignIn}
-            >
-              Continue with Google
-            </LoadingButton>
           </div>
         </div>
       )}
@@ -682,41 +801,41 @@ export function SyncConfigDialog({ isOpen, onClose }: SyncConfigDialogProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose(false)}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="max-h-[calc(100vh-2rem)] max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0">
+        <DialogHeader className="border-b px-6 py-4 pr-12">
           <DialogTitle>
             {t("sync.config.title", "Sync Configuration")}
           </DialogTitle>
           <DialogDescription>
-            Manage self-hosted and hosted sync independently. Hosted sync only
-            becomes active after you explicitly enable it.
+            {t("sync.hosted.dialogDescription")}
           </DialogDescription>
         </DialogHeader>
+        <div className="min-h-0 overflow-y-auto px-6 py-4">
+          {isLoadingSettings ? (
+            <div className="flex justify-center py-8">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            </div>
+          ) : hostedCloudVisible && selfHostedSyncEnabled ? (
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="w-full">
+                <TabsTrigger value="self-hosted" className="flex-1">
+                  Self-Hosted
+                </TabsTrigger>
+                <TabsTrigger value="hosted" className="flex-1">
+                  Hosted
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="self-hosted">{selfHostedSection}</TabsContent>
+              <TabsContent value="hosted">{hostedSection}</TabsContent>
+            </Tabs>
+          ) : hostedCloudVisible ? (
+            hostedSection
+          ) : (
+            selfHostedSection
+          )}
+        </div>
 
-        {isLoadingSettings ? (
-          <div className="flex justify-center py-8">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-current border-t-transparent" />
-          </div>
-        ) : hostedCloudVisible && selfHostedSyncEnabled ? (
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="w-full">
-              <TabsTrigger value="self-hosted" className="flex-1">
-                Self-Hosted
-              </TabsTrigger>
-              <TabsTrigger value="hosted" className="flex-1">
-                Hosted
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="self-hosted">{selfHostedSection}</TabsContent>
-            <TabsContent value="hosted">{hostedSection}</TabsContent>
-          </Tabs>
-        ) : hostedCloudVisible ? (
-          hostedSection
-        ) : (
-          selfHostedSection
-        )}
-
-        <DialogFooter>
+        <DialogFooter className="border-t px-6 py-4">
           <Button variant="outline" onClick={() => onClose(false)}>
             {t("common.actions.close", "Close")}
           </Button>

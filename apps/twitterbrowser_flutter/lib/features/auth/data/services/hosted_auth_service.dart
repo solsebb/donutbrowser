@@ -37,6 +37,15 @@ class HostedAccountProfile {
   }
 }
 
+class HostedAuthException implements Exception {
+  const HostedAuthException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 class HostedAuthService {
   HostedAuthService(this.config);
 
@@ -154,31 +163,85 @@ class HostedAuthService {
   Future<String> issueSyncToken() async {
     final session = _client.auth.currentSession;
     if (session == null) {
-      throw StateError('No hosted session is available.');
+      throw const HostedAuthException('No hosted session is available.');
     }
 
-    final response = await http.post(
-      Uri.parse('${config.supabaseUrl}/functions/v1/issue-sync-token'),
-      headers: {
-        'Authorization': 'Bearer ${session.accessToken}',
-        'apikey': config.supabaseAnonKey,
-        'Content-Type': 'application/json',
-      },
-    );
+    late final http.Response response;
+    try {
+      response = await http.post(
+        Uri.parse('${config.supabaseUrl}/functions/v1/issue-sync-token'),
+        headers: {
+          'Authorization': 'Bearer ${session.accessToken}',
+          'apikey': config.supabaseAnonKey,
+          'Content-Type': 'application/json',
+        },
+      );
+    } on http.ClientException {
+      throw const HostedAuthException(
+        'Unable to reach the hosted token service. Check your network connection and retry.',
+      );
+    } catch (_) {
+      throw const HostedAuthException(
+        'Unable to reach the hosted token service. Check your network connection and retry.',
+      );
+    }
 
     if (response.statusCode != 200) {
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      throw StateError(
-        body['error'] as String? ?? 'Failed to issue a hosted sync token.',
+      Map<String, dynamic>? body;
+      try {
+        body = jsonDecode(response.body) as Map<String, dynamic>;
+      } catch (_) {
+        body = null;
+      }
+
+      throw HostedAuthException(
+        body?['error'] as String? ?? 'Failed to issue a hosted sync token.',
       );
     }
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     final syncToken = body['syncToken'] as String?;
     if (syncToken == null || syncToken.isEmpty) {
-      throw StateError('Supabase did not return a usable sync token.');
+      throw const HostedAuthException(
+        'Supabase did not return a usable sync token.',
+      );
     }
 
     return syncToken;
+  }
+
+  Future<http.Response> fetchHostedProfiles({
+    String? profileId,
+  }) async {
+    final session = _client.auth.currentSession;
+    if (session == null) {
+      throw const HostedAuthException('No hosted session is available.');
+    }
+
+    final baseUri = Uri.parse(
+      '${config.supabaseUrl}/functions/v1/hosted-profiles',
+    );
+    final uri = profileId == null || profileId.isEmpty
+        ? baseUri
+        : baseUri.replace(queryParameters: {'id': profileId});
+
+    try {
+      return await http.get(
+        uri,
+        headers: {
+          'Authorization': 'Bearer ${session.accessToken}',
+          'apikey': config.supabaseAnonKey,
+          'Accept': 'application/json',
+        },
+      );
+    } on http.ClientException {
+      throw const HostedAuthException(
+        'Unable to reach the hosted profile catalog. Check your network connection and retry.',
+      );
+    } catch (_) {
+      throw const HostedAuthException(
+        'Unable to reach the hosted profile catalog. Check your network connection and retry.',
+      );
+    }
   }
 }

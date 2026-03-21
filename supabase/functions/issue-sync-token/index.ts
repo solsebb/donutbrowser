@@ -9,18 +9,43 @@ type UserProfileRow = {
   hosted_sync_enabled: boolean;
 };
 
-function json(body: Record<string, unknown>, status = 200): Response {
+function corsHeaders(request: Request): HeadersInit {
+  const origin = request.headers.get("Origin") ?? "*";
+
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Headers":
+      "authorization, apikey, content-type, x-client-info",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
+  };
+}
+
+function json(
+  request: Request,
+  body: Record<string, unknown>,
+  status = 200,
+): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       "Content-Type": "application/json",
+      ...corsHeaders(request),
     },
   });
 }
 
 Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders(request),
+    });
+  }
+
   if (request.method !== "POST") {
-    return json({ error: "Method not allowed" }, 405);
+    return json(request, { error: "Method not allowed" }, 405);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -37,6 +62,7 @@ Deno.serve(async (request) => {
     !syncJwtPrivateKey
   ) {
     return json(
+      request,
       { error: "Supabase hosted sync function is not fully configured" },
       500,
     );
@@ -46,7 +72,7 @@ Deno.serve(async (request) => {
   const accessToken = authorization?.replace(/^Bearer\s+/i, "");
 
   if (!accessToken) {
-    return json({ error: "Missing bearer token" }, 401);
+    return json(request, { error: "Missing bearer token" }, 401);
   }
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -72,7 +98,11 @@ Deno.serve(async (request) => {
     await authClient.auth.getUser(accessToken);
 
   if (userError || !userData.user) {
-    return json({ error: userError?.message ?? "Invalid session" }, 401);
+    return json(
+      request,
+      { error: userError?.message ?? "Invalid session" },
+      401,
+    );
   }
 
   const { data: profile, error: profileError } = await adminClient
@@ -85,13 +115,18 @@ Deno.serve(async (request) => {
 
   if (profileError || !profile) {
     return json(
+      request,
       { error: profileError?.message ?? "Hosted user profile not found" },
       404,
     );
   }
 
   if (!profile.hosted_sync_enabled) {
-    return json({ error: "Hosted sync is not enabled for this account" }, 403);
+    return json(
+      request,
+      { error: "Hosted sync is not enabled for this account" },
+      403,
+    );
   }
 
   const privateKey = await importPKCS8(syncJwtPrivateKey, "RS256");
@@ -107,7 +142,7 @@ Deno.serve(async (request) => {
     .setExpirationTime("1h")
     .sign(privateKey);
 
-  return json({
+  return json(request, {
     syncToken,
     prefix: profile.sync_prefix,
     profileLimit: profile.profile_limit,

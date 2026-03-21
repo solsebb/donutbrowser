@@ -71,6 +71,9 @@ skip_nonce_check = true
 [functions.issue-sync-token]
 verify_jwt = false
 
+[functions.hosted-profiles]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 policy = "oneshot"

@@ -58,8 +58,7 @@ final hostedProfilesRepositoryProvider = Provider<HostedProfilesRepository>((
   ref,
 ) {
   final authService = ref.watch(hostedAuthServiceProvider);
-  final config = ref.watch(appConfigProvider);
-  return HostedProfilesRepository(authService, config);
+  return HostedProfilesRepository(authService);
 });
 
 final localCompanionStatusProvider = FutureProvider<LocalCompanionStatus?>((

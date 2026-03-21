@@ -1235,6 +1235,7 @@ export default function Home() {
             setSyncAllDialogOpen(true);
           }
         }}
+        onReviewUnsyncedItems={() => setSyncAllDialogOpen(true)}
       />
 
       <SyncAllDialog
