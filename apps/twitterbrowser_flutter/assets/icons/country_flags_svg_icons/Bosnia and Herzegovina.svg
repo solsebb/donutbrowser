@@ -1,0 +1,31 @@
+<svg width="98" height="99" viewBox="0 0 98 99" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g filter="url(#filter0_dd_1104_22976)">
+<g clip-path="url(#clip0_1104_22976)">
+<rect x="7" y="3" width="84" height="84" rx="42" fill="#FFDA2C"/>
+<path d="M96.6012 3H1.40117C-4.78442 3 -9.79883 8.01441 -9.79883 14.2V75.8C-9.79883 81.9856 -4.78442 87 1.40117 87H96.6012C102.787 87 107.801 81.9856 107.801 75.8V14.2C107.801 8.01441 102.787 3 96.6012 3Z" fill="#FFDA2C"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M-9.79883 3L107.801 81.4L107.112 87.56L-9.79883 87V3Z" fill="#1A47B8"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M-4.19924 19.8H1.40076V25.4H-4.19924V19.8ZM12.6008 31H18.2008V36.6H12.6008V31ZM29.4008 42.2H35.0008V47.8H29.4008V42.2ZM46.2008 53.4H51.8008V59H46.2008V53.4ZM63.0008 64.6H68.6008V70.2H63.0008V64.6ZM79.8008 75.8H85.4008V81.4H79.8008V75.8Z" fill="white"/>
+</g>
+</g>
+<defs>
+<filter id="filter0_dd_1104_22976" x="0.142858" y="0.714286" width="97.7143" height="97.7143" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dy="4.57143"/>
+<feGaussianBlur stdDeviation="3.42857"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0.258824 0 0 0 0 0.278431 0 0 0 0 0.298039 0 0 0 0.08 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1104_22976"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset/>
+<feGaussianBlur stdDeviation="0.285714"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0.258824 0 0 0 0 0.278431 0 0 0 0 0.298039 0 0 0 0.32 0"/>
+<feBlend mode="normal" in2="effect1_dropShadow_1104_22976" result="effect2_dropShadow_1104_22976"/>
+<feBlend mode="normal" in="SourceGraphic" in2="effect2_dropShadow_1104_22976" result="shape"/>
+</filter>
+<clipPath id="clip0_1104_22976">
+<rect x="7" y="3" width="84" height="84" rx="42" fill="white"/>
+</clipPath>
+</defs>
+</svg>

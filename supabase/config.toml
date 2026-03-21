@@ -41,7 +41,10 @@ site_url = "http://localhost:12341"
 additional_redirect_urls = [
   "http://localhost:12341",
   "http://127.0.0.1:12341",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
   "twitterbrowser://auth/callback",
+  "twitterbrowserflutter://login-callback/",
 ]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
@@ -66,6 +69,9 @@ url = ""
 skip_nonce_check = true
 
 [functions.issue-sync-token]
+verify_jwt = false
+
+[functions.hosted-profiles]
 verify_jwt = false
 
 [edge_runtime]

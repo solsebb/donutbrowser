@@ -29,6 +29,15 @@ interface StatResponse {
   lastModified?: string;
 }
 
+interface HostedProfile {
+  id: string;
+  name: string;
+  browser: string;
+  version: string;
+  releaseType: string;
+  tags: string[];
+}
+
 interface SSEError {
   code?: string;
   timeout?: boolean;
@@ -166,6 +175,60 @@ describe("SyncController (e2e)", () => {
       const body = response.body as DeleteResponse;
       expect(body.deleted).toBeDefined();
       expect(body.tombstoneCreated).toBe(true);
+    });
+  });
+
+  describe("GET /v1/profiles", () => {
+    const profileId = `profile-${Date.now()}`;
+
+    beforeAll(async () => {
+      const uploadResponse = await request(app.getHttpServer())
+        .post("/v1/objects/presign-upload")
+        .set("Authorization", `Bearer ${TEST_TOKEN}`)
+        .send({
+          key: `profiles/${profileId}/metadata.json`,
+          contentType: "application/json",
+        })
+        .expect(200);
+
+      const metadata = JSON.stringify({
+        id: profileId,
+        name: "Test Profile",
+        browser: "chromium",
+        version: "138",
+        release_type: "stable",
+        tags: ["qa"],
+      });
+
+      await fetch((uploadResponse.body as PresignResponse).url, {
+        method: "PUT",
+        body: metadata,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    it("should list hosted profiles from metadata objects", async () => {
+      const response = await request(app.getHttpServer())
+        .get("/v1/profiles")
+        .set("Authorization", `Bearer ${TEST_TOKEN}`)
+        .expect(200);
+
+      expect(response.body.total).toBeGreaterThan(0);
+      expect(
+        (response.body.profiles as HostedProfile[]).some(
+          (profile) => profile.id === profileId && profile.name === "Test Profile",
+        ),
+      ).toBe(true);
+    });
+
+    it("should fetch a single hosted profile by id", async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/v1/profiles/${profileId}`)
+        .set("Authorization", `Bearer ${TEST_TOKEN}`)
+        .expect(200);
+
+      expect((response.body.profile as HostedProfile).id).toBe(profileId);
+      expect((response.body.profile as HostedProfile).name).toBe("Test Profile");
     });
   });
 

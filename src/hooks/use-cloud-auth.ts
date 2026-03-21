@@ -7,6 +7,7 @@ interface UseCloudAuthReturn {
   user: CloudUser | null;
   isLoggedIn: boolean;
   isLoading: boolean;
+  lastError: string | null;
   requestOtp: (email: string) => Promise<string>;
   verifyOtp: (email: string, code: string) => Promise<CloudAuthState>;
   signInWithPassword: (
@@ -18,11 +19,13 @@ interface UseCloudAuthReturn {
   disableHostedSync: () => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<CloudUser>;
+  clearLastError: () => void;
 }
 
 export function useCloudAuth(): UseCloudAuthReturn {
   const [authState, setAuthState] = useState<CloudAuthState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   const loadUser = useCallback(async () => {
     try {
@@ -47,6 +50,10 @@ export function useCloudAuth(): UseCloudAuthReturn {
       loadUser();
     });
 
+    const unlistenError = listen<string>("cloud-auth-error", (event) => {
+      setLastError(event.payload);
+    });
+
     return () => {
       void unlistenExpired.then((unlisten) => {
         unlisten();
@@ -54,8 +61,15 @@ export function useCloudAuth(): UseCloudAuthReturn {
       void unlistenChanged.then((unlisten) => {
         unlisten();
       });
+      void unlistenError.then((unlisten) => {
+        unlisten();
+      });
     };
   }, [loadUser]);
+
+  const clearLastError = useCallback(() => {
+    setLastError(null);
+  }, []);
 
   const requestOtp = useCallback(async (email: string): Promise<string> => {
     return invoke<string>("hosted_auth_request_email_otp", { email });
@@ -122,6 +136,7 @@ export function useCloudAuth(): UseCloudAuthReturn {
     user: authState?.user ?? null,
     isLoggedIn: authState !== null,
     isLoading,
+    lastError,
     requestOtp,
     verifyOtp,
     signInWithPassword,
@@ -130,5 +145,6 @@ export function useCloudAuth(): UseCloudAuthReturn {
     disableHostedSync,
     logout,
     refreshProfile,
+    clearLastError,
   };
 }

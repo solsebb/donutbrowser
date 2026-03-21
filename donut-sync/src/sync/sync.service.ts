@@ -23,6 +23,10 @@ import { interval, merge, type Observable, of, Subject } from "rxjs";
 import { catchError, filter, map, startWith, switchMap } from "rxjs/operators";
 import type { UserContext } from "../auth/user-context.interface.js";
 import type {
+  HostedProfileDto,
+  HostedProfilesResponseDto,
+} from "./dto/profile.dto.js";
+import type {
   DeletePrefixRequestDto,
   DeletePrefixResponseDto,
   DeleteRequestDto,
@@ -95,6 +99,167 @@ export class SyncService implements OnModuleInit {
 
   async onModuleInit() {
     await this.ensureBucketExists();
+  }
+
+  private async listRawPrefix(prefix: string): Promise<string[]> {
+    let continuationToken: string | undefined;
+    const keys: string[] = [];
+
+    do {
+      const response = await this.s3Client.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucket,
+          Prefix: prefix,
+          MaxKeys: 1000,
+          ContinuationToken: continuationToken,
+        }),
+      );
+
+      for (const item of response.Contents || []) {
+        if (item.Key) {
+          keys.push(item.Key);
+        }
+      }
+
+      continuationToken = response.NextContinuationToken;
+    } while (continuationToken);
+
+    return keys;
+  }
+
+  private async readJsonObject<T>(key: string): Promise<T | null> {
+    try {
+      const response = await this.s3Client.send(
+        new GetObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        }),
+      );
+
+      const text = await response.Body?.transformToString();
+      if (!text) {
+        return null;
+      }
+
+      return JSON.parse(text) as T;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to read hosted profile metadata ${key}: ${error}`,
+      );
+      return null;
+    }
+  }
+
+  private mapHostedProfile(
+    raw: Record<string, unknown>,
+    sourcePrefix: string,
+  ): HostedProfileDto | null {
+    if (typeof raw.id !== "string" || typeof raw.name !== "string") {
+      return null;
+    }
+
+    return {
+      id: raw.id,
+      name: raw.name,
+      browser: typeof raw.browser === "string" ? raw.browser : "",
+      version: typeof raw.version === "string" ? raw.version : "",
+      proxyId: typeof raw.proxy_id === "string" ? raw.proxy_id : null,
+      vpnId: typeof raw.vpn_id === "string" ? raw.vpn_id : null,
+      processId: typeof raw.process_id === "number" ? raw.process_id : null,
+      lastLaunch: typeof raw.last_launch === "number" ? raw.last_launch : null,
+      releaseType:
+        typeof raw.release_type === "string" ? raw.release_type : "stable",
+      groupId: typeof raw.group_id === "string" ? raw.group_id : null,
+      tags: Array.isArray(raw.tags)
+        ? raw.tags.filter((item): item is string => typeof item === "string")
+        : [],
+      note: typeof raw.note === "string" ? raw.note : null,
+      syncMode: typeof raw.sync_mode === "string" ? raw.sync_mode : null,
+      lastSync: typeof raw.last_sync === "number" ? raw.last_sync : null,
+      hostOs: typeof raw.host_os === "string" ? raw.host_os : null,
+      proxyBypassRules: Array.isArray(raw.proxy_bypass_rules)
+        ? raw.proxy_bypass_rules.filter(
+            (item): item is string => typeof item === "string",
+          )
+        : [],
+      createdById:
+        typeof raw.created_by_id === "string" ? raw.created_by_id : null,
+      createdByEmail:
+        typeof raw.created_by_email === "string" ? raw.created_by_email : null,
+      isRunning: false,
+      sourcePrefix,
+    };
+  }
+
+  async listProfiles(ctx: UserContext): Promise<HostedProfilesResponseDto> {
+    const prefixes =
+      ctx.mode === "self-hosted"
+        ? ["profiles/"]
+        : [
+            this.scopeKey(ctx, "profiles/"),
+            ...(ctx.teamPrefix ? [`${ctx.teamPrefix}profiles/`] : []),
+          ];
+
+    const metadataEntries = new Map<string, HostedProfileDto>();
+
+    for (const prefix of prefixes) {
+      const keys = await this.listRawPrefix(prefix);
+      const metadataKeys = keys.filter((key) => key.endsWith("/metadata.json"));
+
+      for (const key of metadataKeys) {
+        const rawProfile =
+          await this.readJsonObject<Record<string, unknown>>(key);
+        if (!rawProfile) {
+          continue;
+        }
+
+        const profile = this.mapHostedProfile(
+          rawProfile,
+          prefix.endsWith("profiles/")
+            ? prefix.slice(0, -"profiles/".length)
+            : prefix,
+        );
+
+        if (profile) {
+          metadataEntries.set(profile.id, profile);
+        }
+      }
+    }
+
+    const profiles = Array.from(metadataEntries.values()).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+
+    return {
+      profiles,
+      total: profiles.length,
+    };
+  }
+
+  async getProfile(
+    profileId: string,
+    ctx: UserContext,
+  ): Promise<HostedProfileDto | null> {
+    const prefixes =
+      ctx.mode === "self-hosted"
+        ? [""]
+        : [ctx.prefix, ...(ctx.teamPrefix ? [ctx.teamPrefix] : [])];
+
+    for (const prefix of prefixes) {
+      const key = `${prefix}profiles/${profileId}/metadata.json`;
+      const rawProfile =
+        await this.readJsonObject<Record<string, unknown>>(key);
+      if (!rawProfile) {
+        continue;
+      }
+
+      const profile = this.mapHostedProfile(rawProfile, prefix);
+      if (profile) {
+        return profile;
+      }
+    }
+
+    return null;
   }
 
   private async ensureBucketExists(): Promise<void> {

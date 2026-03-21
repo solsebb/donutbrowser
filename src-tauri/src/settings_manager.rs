@@ -869,6 +869,16 @@ pub async fn save_app_settings(
     .save_settings(&persist_settings)
     .map_err(|e| format!("Failed to save settings: {e}"))?;
 
+  if settings.api_enabled {
+    if let Ok(Some(port)) = crate::api_server::get_api_server_status().await {
+      if let Some(token) = settings.api_token.as_deref() {
+        let _ = crate::local_companion::write_status(port, token);
+      }
+    }
+  } else {
+    let _ = crate::local_companion::clear_status();
+  }
+
   Ok(settings)
 }
 

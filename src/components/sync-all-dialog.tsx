@@ -16,9 +16,12 @@ import {
 import { showErrorToast, showSuccessToast } from "@/lib/toast-utils";
 
 interface UnsyncedEntityCounts {
+  profiles: number;
   proxies: number;
   groups: number;
   vpns: number;
+  extensions: number;
+  extension_groups: number;
 }
 
 interface SyncAllDialogProps {
@@ -68,7 +71,12 @@ export function SyncAllDialog({ isOpen, onClose }: SyncAllDialogProps) {
   }, [onClose, t]);
 
   const totalCount =
-    (counts?.proxies ?? 0) + (counts?.groups ?? 0) + (counts?.vpns ?? 0);
+    (counts?.profiles ?? 0) +
+    (counts?.proxies ?? 0) +
+    (counts?.groups ?? 0) +
+    (counts?.vpns ?? 0) +
+    (counts?.extensions ?? 0) +
+    (counts?.extension_groups ?? 0);
 
   // Don't show if there's nothing to sync
   if (!isLoading && totalCount === 0) {
@@ -76,6 +84,9 @@ export function SyncAllDialog({ isOpen, onClose }: SyncAllDialogProps) {
   }
 
   const parts: string[] = [];
+  if (counts?.profiles && counts.profiles > 0) {
+    parts.push(t("syncAll.profiles", { count: counts.profiles }));
+  }
   if (counts?.proxies && counts.proxies > 0) {
     parts.push(t("syncAll.proxies", { count: counts.proxies }));
   }
@@ -84,6 +95,14 @@ export function SyncAllDialog({ isOpen, onClose }: SyncAllDialogProps) {
   }
   if (counts?.vpns && counts.vpns > 0) {
     parts.push(t("syncAll.vpns", { count: counts.vpns }));
+  }
+  if (counts?.extensions && counts.extensions > 0) {
+    parts.push(t("syncAll.extensions", { count: counts.extensions }));
+  }
+  if (counts?.extension_groups && counts.extension_groups > 0) {
+    parts.push(
+      t("syncAll.extensionGroups", { count: counts.extension_groups }),
+    );
   }
 
   return (

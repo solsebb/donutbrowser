@@ -1,3 +1,6 @@
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FaDownload } from "react-icons/fa";
 import { FiWifi } from "react-icons/fi";
@@ -10,7 +13,9 @@ import {
   LuUsers,
   LuX,
 } from "react-icons/lu";
+import { useCloudAuth } from "@/hooks/use-cloud-auth";
 import { cn } from "@/lib/utils";
+import type { SyncSettings } from "@/types";
 import { Logo } from "./icons/logo";
 import { useRuntimeAppConfig } from "./runtime-app-config-provider";
 import { Button } from "./ui/button";
@@ -53,6 +58,71 @@ const HomeHeader = ({
 }: Props) => {
   const { t } = useTranslation();
   const runtimeConfig = useRuntimeAppConfig();
+  const { isLoggedIn, user } = useCloudAuth();
+  const [syncSettings, setSyncSettings] = useState<SyncSettings | null>(null);
+
+  const loadSyncSettings = useCallback(async () => {
+    try {
+      const settings = await invoke<SyncSettings>("get_sync_settings");
+      setSyncSettings(settings);
+    } catch (error) {
+      console.error("Failed to load sync settings for header:", error);
+      setSyncSettings(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn || runtimeConfig.hosted_cloud_ui_mode === "hidden") {
+      setSyncSettings(null);
+      return;
+    }
+
+    void loadSyncSettings();
+
+    const unlisten = listen("cloud-auth-changed", () => {
+      void loadSyncSettings();
+    });
+
+    return () => {
+      void unlisten.then((dispose) => {
+        dispose();
+      });
+    };
+  }, [isLoggedIn, loadSyncSettings, runtimeConfig.hosted_cloud_ui_mode]);
+
+  const hostedStatus = useMemo(() => {
+    if (!isLoggedIn || runtimeConfig.hosted_cloud_ui_mode === "hidden") {
+      return null;
+    }
+
+    if (
+      syncSettings?.hosted_sync_enabled &&
+      syncSettings.active_sync_mode === "hosted"
+    ) {
+      return {
+        label: t("sync.hosted.headerActive"),
+        tooltip: t("sync.hosted.headerActiveHint"),
+        className:
+          "border-success/50 bg-success/10 text-success hover:bg-success/15",
+      };
+    }
+
+    return {
+      label: t("sync.hosted.headerInactive"),
+      tooltip: user?.email
+        ? t("sync.hosted.headerInactiveHintWithEmail", { email: user.email })
+        : t("sync.hosted.headerInactiveHint"),
+      className:
+        "border-warning/50 bg-warning/10 text-warning hover:bg-warning/15",
+    };
+  }, [
+    isLoggedIn,
+    runtimeConfig.hosted_cloud_ui_mode,
+    syncSettings?.active_sync_mode,
+    syncSettings?.hosted_sync_enabled,
+    t,
+    user?.email,
+  ]);
 
   const handleLogoClick = () => {
     if (!runtimeConfig.homepage_url) {
@@ -84,6 +154,27 @@ const HomeHeader = ({
         <CardTitle>{runtimeConfig.display_name}</CardTitle>
       </div>
       <div className="flex gap-2 items-center">
+        {hostedStatus ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className={cn(
+                  "flex gap-2 items-center h-[36px]",
+                  hostedStatus.className,
+                )}
+                onClick={() => {
+                  onSyncConfigDialogOpen(true);
+                }}
+              >
+                <LuCloud className="w-4 h-4" />
+                <span>{hostedStatus.label}</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{hostedStatus.tooltip}</TooltipContent>
+          </Tooltip>
+        ) : null}
         <div className="relative">
           <Input
             type="text"

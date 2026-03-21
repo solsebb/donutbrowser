@@ -3056,6 +3056,7 @@ pub fn is_vpn_in_use_by_synced_profile(vpn_id: String) -> bool {
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct UnsyncedEntityCounts {
+  pub profiles: usize,
   pub proxies: usize,
   pub groups: usize,
   pub vpns: usize,
@@ -3065,6 +3066,17 @@ pub struct UnsyncedEntityCounts {
 
 #[tauri::command]
 pub fn get_unsynced_entity_counts() -> Result<UnsyncedEntityCounts, String> {
+  let profile_count = {
+    let profile_manager = ProfileManager::instance();
+    let profiles = profile_manager
+      .list_profiles()
+      .map_err(|e| format!("Failed to list profiles: {e}"))?;
+    profiles
+      .iter()
+      .filter(|profile| !profile.is_sync_enabled() && !profile.is_cross_os() && !profile.ephemeral)
+      .count()
+  };
+
   let proxy_count = {
     let proxies = crate::proxy_manager::PROXY_MANAGER.get_stored_proxies();
     proxies
@@ -3106,6 +3118,7 @@ pub fn get_unsynced_entity_counts() -> Result<UnsyncedEntityCounts, String> {
   };
 
   Ok(UnsyncedEntityCounts {
+    profiles: profile_count,
     proxies: proxy_count,
     groups: group_count,
     vpns: vpn_count,
@@ -3116,6 +3129,33 @@ pub fn get_unsynced_entity_counts() -> Result<UnsyncedEntityCounts, String> {
 
 #[tauri::command]
 pub async fn enable_sync_for_all_entities(app_handle: tauri::AppHandle) -> Result<(), String> {
+  // Enable sync for all eligible profiles first so dependent entities can be
+  // auto-enabled and queued through the normal profile sync path.
+  {
+    let profiles = {
+      let profile_manager = ProfileManager::instance();
+      profile_manager
+        .list_profiles()
+        .map_err(|e| format!("Failed to list profiles: {e}"))?
+    };
+
+    for profile in &profiles {
+      if profile.is_sync_enabled() || profile.is_cross_os() || profile.ephemeral {
+        continue;
+      }
+
+      if let Err(e) = set_profile_sync_mode(
+        app_handle.clone(),
+        profile.id.to_string(),
+        "Regular".to_string(),
+      )
+      .await
+      {
+        log::warn!("Failed to enable sync for profile {}: {e}", profile.id);
+      }
+    }
+  }
+
   // Enable sync for all unsynced proxies
   {
     let proxies = crate::proxy_manager::PROXY_MANAGER.get_stored_proxies();

@@ -1,11 +1,12 @@
 import { Module } from "@nestjs/common";
 import { AuthGuard } from "../auth/auth.guard.js";
 import { InternalController } from "./internal.controller.js";
+import { ProfilesController } from "./profiles.controller.js";
 import { SyncController } from "./sync.controller.js";
 import { SyncService } from "./sync.service.js";
 
 @Module({
-  controllers: [SyncController, InternalController],
+  controllers: [SyncController, ProfilesController, InternalController],
   providers: [SyncService, AuthGuard],
   exports: [SyncService],
 })

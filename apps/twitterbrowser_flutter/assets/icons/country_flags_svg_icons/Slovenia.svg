@@ -1,0 +1,34 @@
+<svg width="98" height="99" viewBox="0 0 98 99" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g filter="url(#filter0_dd_1104_22864)">
+<g clip-path="url(#clip0_1104_22864)">
+<rect x="7" y="3" width="84" height="84" rx="42" fill="#1A47B8"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M7 59H124.6V87H7V59Z" fill="#F93939"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M7 3H124.6V31H7V3Z" fill="white"/>
+<path d="M43.3996 19.7999H32.1996C29.1068 19.7999 26.5996 22.3071 26.5996 25.3999V39.3999C26.5996 42.4927 29.1068 44.9999 32.1996 44.9999H43.3996C46.4924 44.9999 48.9996 42.4927 48.9996 39.3999V25.3999C48.9996 22.3071 46.4924 19.7999 43.3996 19.7999Z" fill="#F93939"/>
+<path d="M40.5993 19.7999H34.9993C31.9065 19.7999 29.3993 22.3071 29.3993 25.3999V36.5999C29.3993 39.6927 31.9065 42.1999 34.9993 42.1999H40.5993C43.6921 42.1999 46.1993 39.6927 46.1993 36.5999V25.3999C46.1993 22.3071 43.6921 19.7999 40.5993 19.7999Z" fill="#1A47B8"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M35 25.4001H40.6V31.0001H35V25.4001Z" fill="#FFDA2C"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M29.3993 36.5999L37.7993 33.7999L46.1993 36.5999L40.5993 42.1999H34.9993L29.3993 36.5999Z" fill="white"/>
+</g>
+</g>
+<defs>
+<filter id="filter0_dd_1104_22864" x="0.142858" y="0.714286" width="97.7143" height="97.7143" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset dy="4.57143"/>
+<feGaussianBlur stdDeviation="3.42857"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0.258824 0 0 0 0 0.278431 0 0 0 0 0.298039 0 0 0 0.08 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1104_22864"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feOffset/>
+<feGaussianBlur stdDeviation="0.285714"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0.258824 0 0 0 0 0.278431 0 0 0 0 0.298039 0 0 0 0.32 0"/>
+<feBlend mode="normal" in2="effect1_dropShadow_1104_22864" result="effect2_dropShadow_1104_22864"/>
+<feBlend mode="normal" in="SourceGraphic" in2="effect2_dropShadow_1104_22864" result="shape"/>
+</filter>
+<clipPath id="clip0_1104_22864">
+<rect x="7" y="3" width="84" height="84" rx="42" fill="white"/>
+</clipPath>
+</defs>
+</svg>

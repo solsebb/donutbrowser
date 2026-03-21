@@ -6,6 +6,7 @@ use std::sync::Mutex;
 use tauri::{Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_log::{Target, TargetKind};
+use url::Url;
 
 // Store pending URLs that need to be handled when the window is ready
 static PENDING_URLS: Mutex<Vec<String>> = Mutex::new(Vec::new());
@@ -31,6 +32,7 @@ mod geoip_downloader;
 mod group_manager;
 mod human_typing;
 mod ip_utils;
+mod local_companion;
 mod platform_browser;
 mod profile;
 mod profile_importer;
@@ -191,9 +193,13 @@ async fn handle_url_open(app: tauri::AppHandle, url: String) -> Result<(), Strin
   log::info!("handle_url_open called with URL: {url}");
 
   if cloud_auth::CloudAuthManager::is_oauth_callback_url(&url) {
-    let _ = cloud_auth::CLOUD_AUTH
+    cloud_auth::CLOUD_AUTH
       .handle_oauth_callback(app.clone(), &url)
-      .await;
+      .await
+      .map_err(|e| {
+        log::error!("Failed to handle OAuth callback URL {url}: {e}");
+        e
+      })?;
     return Ok(());
   }
 
@@ -866,6 +872,15 @@ where
   }
 }
 
+fn extract_launch_url(args: &[String]) -> Option<String> {
+  args.iter().skip(1).find_map(|arg| {
+    Url::parse(arg)
+      .ok()
+      .filter(|url| matches!(url.scheme(), "http" | "https" | "twitterbrowser"))
+      .map(|_| arg.clone())
+  })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   match data_isolation::bootstrap_data_isolation() {
@@ -880,7 +895,7 @@ pub fn run() {
   }
 
   let args: Vec<String> = env::args().collect();
-  let startup_url = args.iter().find(|arg| arg.starts_with("http")).cloned();
+  let startup_url = extract_launch_url(&args);
   let dev_isolated = dev_isolated_mode_enabled();
 
   if let Some(url) = startup_url.clone() {
@@ -928,6 +943,16 @@ pub fn run() {
           let _ = window.show();
           let _ = window.set_focus();
           let _ = window.unminimize();
+        }
+
+        if let Some(url) = extract_launch_url(&args) {
+          let handle_clone = app_handle.clone();
+          tauri::async_runtime::spawn(async move {
+            log::info!("Processing single-instance launch URL: {url}");
+            if let Err(e) = handle_url_open(handle_clone, url.clone()).await {
+              log::error!("Failed to handle single-instance launch URL {url}: {e}");
+            }
+          });
         }
       },
     ));

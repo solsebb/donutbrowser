@@ -68,7 +68,6 @@ pub struct CloudAuthState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PendingOauthState {
-  state: String,
   code_verifier: String,
   redirect_url: String,
   created_at: String,
@@ -108,11 +107,12 @@ struct UserProfileRow {
 }
 
 #[derive(Debug, Serialize)]
-struct UserProfileUpsertPayload {
+struct UserProfileInsertPayload {
   id: String,
   email: String,
   display_name: Option<String>,
   avatar_url: Option<String>,
+  sync_prefix: String,
   last_login_at: String,
 }
 
@@ -271,6 +271,9 @@ fn derive_avatar_url(user: &SupabaseAuthUser) -> Option<String> {
     .filter(|value| !value.is_empty())
     .map(str::to_string)
 }
+
+const USER_PROFILE_SELECT: &str =
+  "id,email,display_name,avatar_url,sync_prefix,profile_limit,cloud_profiles_used,hosted_sync_enabled,last_login_at";
 
 impl CloudAuthManager {
   fn new() -> Self {
@@ -561,16 +564,70 @@ impl CloudAuthManager {
       .email
       .clone()
       .ok_or_else(|| "Supabase user is missing an email address".to_string())?;
-    let payload = UserProfileUpsertPayload {
+    if self
+      .fetch_user_profile(access_token, &auth_user.id)
+      .await?
+      .is_some()
+    {
+      self
+        .update_user_profile(access_token, auth_user, &email)
+        .await
+    } else {
+      self
+        .insert_user_profile(access_token, auth_user, &email)
+        .await
+    }
+  }
+
+  async fn fetch_user_profile(
+    &self,
+    access_token: &str,
+    user_id: &str,
+  ) -> Result<Option<UserProfileRow>, String> {
+    let url = format!(
+      "{}?id=eq.{}&select={}",
+      rest_endpoint("user_profiles")?,
+      user_id,
+      USER_PROFILE_SELECT
+    );
+    let response = self
+      .client
+      .get(&url)
+      .header("apikey", require_supabase_anon_key()?)
+      .header("Authorization", format!("Bearer {access_token}"))
+      .send()
+      .await
+      .map_err(|e| format!("Failed to fetch user profile: {e}"))?;
+
+    if !response.status().is_success() {
+      return Err(error_from_response("Failed to fetch user profile", response).await);
+    }
+
+    let mut rows = response
+      .json::<Vec<UserProfileRow>>()
+      .await
+      .map_err(|e| format!("Failed to parse user profile: {e}"))?;
+    Ok(rows.pop())
+  }
+
+  async fn insert_user_profile(
+    &self,
+    access_token: &str,
+    auth_user: &SupabaseAuthUser,
+    email: &str,
+  ) -> Result<UserProfileRow, String> {
+    let payload = UserProfileInsertPayload {
       id: auth_user.id.clone(),
-      email,
+      email: email.to_string(),
       display_name: derive_display_name(auth_user),
       avatar_url: derive_avatar_url(auth_user),
+      sync_prefix: format!("users/{}/", auth_user.id),
       last_login_at: Utc::now().to_rfc3339(),
     };
     let url = format!(
-      "{}?select=id,email,display_name,avatar_url,sync_prefix,profile_limit,cloud_profiles_used,hosted_sync_enabled,last_login_at",
-      rest_endpoint("user_profiles")?
+      "{}?select={}",
+      rest_endpoint("user_profiles")?,
+      USER_PROFILE_SELECT
     );
 
     let response = self
@@ -578,26 +635,70 @@ impl CloudAuthManager {
       .post(&url)
       .header("apikey", require_supabase_anon_key()?)
       .header("Authorization", format!("Bearer {access_token}"))
-      .header(
-        "Prefer",
-        "resolution=merge-duplicates,return=representation",
-      )
+      .header("Prefer", "return=representation")
       .json(&vec![payload])
       .send()
       .await
-      .map_err(|e| format!("Failed to upsert user profile: {e}"))?;
+      .map_err(|e| format!("Failed to insert user profile: {e}"))?;
 
     if !response.status().is_success() {
-      return Err(error_from_response("Failed to upsert user profile", response).await);
+      return Err(error_from_response("Failed to insert user profile", response).await);
     }
 
     let mut rows = response
       .json::<Vec<UserProfileRow>>()
       .await
-      .map_err(|e| format!("Failed to parse user profile: {e}"))?;
+      .map_err(|e| format!("Failed to parse inserted user profile: {e}"))?;
     rows
       .pop()
-      .ok_or_else(|| "Supabase returned no user profile row".to_string())
+      .ok_or_else(|| "Supabase returned no inserted user profile row".to_string())
+  }
+
+  async fn update_user_profile(
+    &self,
+    access_token: &str,
+    auth_user: &SupabaseAuthUser,
+    email: &str,
+  ) -> Result<UserProfileRow, String> {
+    let mut payload = serde_json::json!({
+      "email": email,
+      "last_login_at": Utc::now().to_rfc3339(),
+    });
+    if let Some(display_name) = derive_display_name(auth_user) {
+      payload["display_name"] = Value::String(display_name);
+    }
+    if let Some(avatar_url) = derive_avatar_url(auth_user) {
+      payload["avatar_url"] = Value::String(avatar_url);
+    }
+
+    let url = format!(
+      "{}?id=eq.{}&select={}",
+      rest_endpoint("user_profiles")?,
+      auth_user.id,
+      USER_PROFILE_SELECT
+    );
+    let response = self
+      .client
+      .patch(&url)
+      .header("apikey", require_supabase_anon_key()?)
+      .header("Authorization", format!("Bearer {access_token}"))
+      .header("Prefer", "return=representation")
+      .json(&payload)
+      .send()
+      .await
+      .map_err(|e| format!("Failed to update user profile: {e}"))?;
+
+    if !response.status().is_success() {
+      return Err(error_from_response("Failed to update user profile", response).await);
+    }
+
+    let mut rows = response
+      .json::<Vec<UserProfileRow>>()
+      .await
+      .map_err(|e| format!("Failed to parse updated user profile: {e}"))?;
+    rows
+      .pop()
+      .ok_or_else(|| "Supabase returned no updated user profile row".to_string())
   }
 
   fn build_cloud_user(auth_user: &SupabaseAuthUser, row: &UserProfileRow) -> CloudUser {
@@ -738,9 +839,7 @@ impl CloudAuthManager {
     let redirect_url = require_supabase_redirect_url()?.to_string();
     let code_verifier = random_urlsafe_bytes(64);
     let code_challenge = pkce_code_challenge(&code_verifier);
-    let state = random_urlsafe_bytes(32);
     let pending = PendingOauthState {
-      state: state.clone(),
       code_verifier,
       redirect_url: redirect_url.clone(),
       created_at: Utc::now().to_rfc3339(),
@@ -755,7 +854,6 @@ impl CloudAuthManager {
       .append_pair("redirect_to", &redirect_url)
       .append_pair("code_challenge", &code_challenge)
       .append_pair("code_challenge_method", "S256")
-      .append_pair("state", &state)
       .append_pair("access_type", "offline")
       .append_pair("prompt", "consent")
       .append_pair("scopes", "email profile");
@@ -776,9 +874,34 @@ impl CloudAuthManager {
       return false;
     };
 
-    callback_url.scheme() == configured.scheme()
-      && callback_url.host_str() == configured.host_str()
-      && callback_url.path() == configured.path()
+    if callback_url.scheme() != configured.scheme() {
+      return false;
+    }
+
+    let host_matches = callback_url.host_str() == configured.host_str();
+    let callback_path = callback_url.path().trim_end_matches('/');
+    let configured_path = configured.path().trim_end_matches('/');
+    let path_matches = callback_path == configured_path;
+
+    if host_matches && path_matches {
+      return true;
+    }
+
+    let has_auth_params = callback_url.query_pairs().any(|(key, _)| {
+      matches!(
+        key.as_ref(),
+        "code" | "error" | "access_token" | "refresh_token"
+      )
+    }) || callback_url.fragment().is_some_and(|fragment| {
+      url::form_urlencoded::parse(fragment.as_bytes()).any(|(key, _)| {
+        matches!(
+          key.as_ref(),
+          "code" | "error" | "access_token" | "refresh_token"
+        )
+      })
+    });
+
+    has_auth_params && callback_url.scheme() == configured.scheme()
   }
 
   pub async fn handle_oauth_callback(
@@ -787,11 +910,23 @@ impl CloudAuthManager {
     url: &str,
   ) -> Result<(), String> {
     let callback_url = Url::parse(url).map_err(|e| format!("Invalid auth callback URL: {e}"))?;
-    let params = callback_url.query_pairs().collect::<Vec<_>>();
+    let mut params = callback_url
+      .query_pairs()
+      .map(|(key, value)| (key.to_string(), value.to_string()))
+      .collect::<Vec<_>>();
+
+    if params.is_empty() {
+      if let Some(fragment) = callback_url.fragment() {
+        params.extend(
+          url::form_urlencoded::parse(fragment.as_bytes())
+            .map(|(key, value)| (key.to_string(), value.to_string())),
+        );
+      }
+    }
 
     if let Some(error) = params.iter().find_map(|(key, value)| {
       if key == "error" {
-        Some(value.to_string())
+        Some(value.clone())
       } else {
         None
       }
@@ -801,7 +936,7 @@ impl CloudAuthManager {
         .iter()
         .find_map(|(key, value)| {
           if key == "error_description" {
-            Some(value.to_string())
+            Some(value.clone())
           } else {
             None
           }
@@ -815,29 +950,14 @@ impl CloudAuthManager {
       .iter()
       .find_map(|(key, value)| {
         if key == "code" {
-          Some(value.to_string())
+          Some(value.clone())
         } else {
           None
         }
       })
       .ok_or_else(|| "Missing OAuth authorization code".to_string())?;
-    let state = params
-      .iter()
-      .find_map(|(key, value)| {
-        if key == "state" {
-          Some(value.to_string())
-        } else {
-          None
-        }
-      })
-      .ok_or_else(|| "Missing OAuth state".to_string())?;
-
     let pending = Self::load_pending_oauth_state()?
       .ok_or_else(|| "No pending OAuth state found. Please retry sign-in.".to_string())?;
-    if pending.state != state {
-      Self::clear_pending_oauth_state();
-      return Err("OAuth state mismatch. Please retry sign-in.".to_string());
-    }
 
     let token_url = format!("{}?grant_type=pkce", auth_endpoint("token")?);
     let response = self
